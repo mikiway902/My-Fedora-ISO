@@ -16,7 +16,7 @@
 | [Containerfile](Containerfile) | Этапы `driftwm` и `gnome`, нужный выбирается через `--target`. driftwm собирается из последнего релиза, закрепить версию можно через `DRIFTWM_VERSION` |
 | [build_files/build.sh](build_files/build.sh) | Списки пакетов: `SESSION` (только driftwm), `LAPTOP` (железо), `APPS` (программы из репозиториев), `VENDOR_RPMS` (RPM разработчиков). Всё, кроме `SESSION`, общее |
 | [system_files/usr/share/my-fedora/](system_files/usr/share/my-fedora) | Списки `flatpaks`, `vscode-extensions`, пункт Windows для GRUB |
-| [system_files/](system_files) | Копируется в `/`: greetd и стартовый конфиг driftwm (в образе GNOME удаляются), репозиторий VS Code, сервисы установки |
+| [system_files/](system_files) | Копируется в `/`: greetd, профиль kanshi, лимит заряда, уведомление о прошивках (всё это только для driftwm, в образе GNOME удаляется или не включается), репозиторий VS Code, сервисы установки |
 | [disk_config/iso-driftwm.toml](disk_config/iso-driftwm.toml), [iso-gnome.toml](disk_config/iso-gnome.toml) | Установщик Anaconda для каждого образа. Модуль Users включён: в driftwm нет мастера первого запуска, поэтому пользователя создаёт установщик |
 | [Justfile](Justfile) | Переменная `VARIANT` (`driftwm` по умолчанию или `gnome`) задаёт этап, имя образа и ISO |
 
@@ -30,7 +30,7 @@
 | `docker` / `docker compose` (поверх rootless Podman) | Fedora: `podman-docker`, `podman-compose` | С образом |
 | PdfCraft, Happ, opencode desktop | Последний релиз на GitHub на момент сборки | С образом |
 | RuDesktop | Последняя версия с rudesktop.ru (сборка для РЕД ОС) | С образом |
-| Discord, Telegram, Moonlight, OnlyOffice, Podman Desktop | Flathub, при первой загрузке | Сами, таймер Flatpak |
+| Discord, Telegram, Moonlight, OnlyOffice, Podman Desktop, Bazaar (магазин Flatpak), Flatseal (права Flatpak) | Flathub, при первой загрузке | Сами, таймер Flatpak |
 
 Программу из списков `flatpaks` или `vscode-extensions` можно добавить в любой момент: после обновления системы она установится сама. Если пользователь удалил программу, обратно она не ставится.
 
@@ -126,12 +126,30 @@ sudo bootc switch ghcr.io/mikiway902/my-fedora-iso-driftwm:latest
 
 ## После первой загрузки
 
-- Отпечаток для входа и sudo: `sudo authselect enable-feature with-fingerprint`, потом `fprintd-enroll`. В GNOME то же самое есть в Настройки → Пользователи.
-- Лимит заряда 80 %. В GNOME: Настройки → Питание → «Preserve Battery Health». В driftwm через `tmpfiles`:
-  ```bash
-  echo 'w /sys/class/power_supply/BAT0/charge_control_end_threshold - - - - 80' | sudo tee /etc/tmpfiles.d/battery.conf
-  ```
-- Полноценная панель для driftwm (батарея, Wi-Fi, BT): `extras/install.sh` из репо driftwm. Ему нужен Quickshell, которого нет в Fedora. Его ставят из COPR, если захотите, добавлю в образ.
+- **Отпечаток.** Вход, sudo и запросы прав по отпечатку уже включены в обоих образах. Осталось записать палец: `fprintd-enroll`, а в GNOME через Настройки → Пользователи. Пока отпечаток не записан, работает обычный пароль.
+- **Лимит заряда 80 %.** В driftwm он включён сразу: зарядка до 80 %, дозарядка ниже 75 % ([thinkpad-battery.conf](system_files/usr/lib/tmpfiles.d/thinkpad-battery.conf)). Чтобы один раз зарядить до 100 %, выполните `echo 100 | sudo tee /sys/class/power_supply/BAT0/charge_control_end_threshold`, после перезагрузки снова будет 80. В GNOME: Настройки → Питание → «Preserve Battery Health».
+- **Ночной режим в driftwm** настроен на координаты Москвы. Если вы в другом городе, поправьте `wlsunset -l … -L …` в `~/.config/driftwm/config.toml`.
+- **Внешний монитор в driftwm.** Профили описываются в `~/.config/kanshi/config`, пример там уже есть.
+
+## driftwm: что есть из коробки
+
+Новый пользователь получает [панель и скрипты из extras driftwm](https://github.com/malbiruk/driftwm/tree/main/extras) и наш [конфиг](system_files/usr/share/my-fedora/driftwm-config.toml) поверх.
+
+| Клавиши / событие | Что происходит |
+|---|---|
+| `Alt+Shift` (нажать и отпустить) | Переключение us ⇄ ru. Через XKB это не сделано, потому что тогда сломались бы перетаскивания с `Alt+Shift` |
+| `Super+A` или щипок 4 пальцами | Домашний экран с панелью: время, раскладка, Wi-Fi, Bluetooth, батарея и профиль питания, громкость, яркость, трей, меню питания |
+| `Super+D` | Поиск по окнам и приложениям (fuzzel) |
+| `Super+V` | История буфера обмена (cliphist) |
+| `Super+N` | Центр уведомлений (swaync) |
+| `Print` / `Shift+Print` / `Ctrl+Print` | Область с редактором (swappy) / область в буфер / активное окно в буфер |
+| Клавиши громкости и яркости | Индикатор на экране (swayosd) |
+| Медиаклавиши | playerctl, работают в любом плеере |
+| 5 / 5,5 / 15 минут простоя | Блокировка / выключение экрана / сон. Перед сном экран блокируется всегда |
+| Вечер | Тёплые цвета экрана (wlsunset) |
+| Раз в день | Уведомление, если для BIOS, EC или сканера есть новая прошивка |
+
+Кроме того, в образе driftwm есть печать (CUPS и «Настройки принтера»), а в обоих образах — шрифты, совместимые с Times New Roman, Arial, Calibri и Cambria. С ними документы MS Office в OnlyOffice не разъезжаются.
 
 ## Без своего образа
 

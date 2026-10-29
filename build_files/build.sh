@@ -12,12 +12,17 @@ SESSION=()
     greetd tuigreet
     xwayland-satellite
     xdg-desktop-portal-gtk xdg-desktop-portal-wlr gnome-keyring
-    foot fuzzel SwayNotificationCenter swaybg swayidle swaylock
+    foot fuzzel SwayNotificationCenter swaybg swayidle swaylock wlopm
     brightnessctl wireplumber pipewire-pulseaudio pavucontrol
     NetworkManager-wifi NetworkManager-tui bluez blueman
     polkit lxqt-policykit
     google-noto-sans-fonts google-noto-emoji-fonts
+    quickshell swayosd                 # dashboard and volume/brightness OSD, from COPRs below
+    jq wl-clipboard libnotify          # used by the driftwm extras scripts
+    playerctl cliphist wlsunset kanshi
+    cups system-config-printer         # printing, Silverblue already has it
 )
+DRIFTWM_COPRS=(errornointernet/quickshell erikreider/swayosd)
 
 ### ThinkPad P14s Gen 2 AMD
 LAPTOP=(
@@ -38,6 +43,7 @@ APPS=(
     git
     podman-docker podman-compose       # `docker` / `docker compose` on top of rootless podman
     btrfs-assistant snapper
+    liberation-fonts-all google-carlito-fonts google-crosextra-caladea-fonts  # metric-compatible MS Office fonts
 )
 
 ### Apps from vendor RPMs, always the latest release at build time
@@ -51,16 +57,34 @@ VENDOR_RPMS=(
     "https://storage.rudesktop.ru/download/${RUDESKTOP}"  # built for RED OS, not Fedora
 )
 
+if [[ $VARIANT == driftwm ]]; then
+    for copr in "${DRIFTWM_COPRS[@]}"; do dnf5 -y copr enable "$copr"; done
+fi
+
 dnf5 -y install "${SESSION[@]}" "${LAPTOP[@]}" "${APPS[@]}" "${VENDOR_RPMS[@]}"
 
-chmod +x /usr/libexec/my-fedora-preinstall  # git on Windows drops the exec bit
+if [[ $VARIANT == driftwm ]]; then
+    # Disable COPRs so they don't end up enabled on the final image
+    for copr in "${DRIFTWM_COPRS[@]}"; do dnf5 -y copr disable "$copr"; done
+fi
+
+chmod +x /usr/libexec/my-fedora-*  # git on Windows drops the exec bit
+
+# Fingerprint for login, sudo and polkit; with no enrolled finger PAM falls through to the password
+authselect enable-feature with-fingerprint
 
 systemctl enable flatpak-preinstall.service grub-windows-entry.service
 systemctl --global enable vscode-extensions.service
 
 if [[ $VARIANT == driftwm ]]; then
-    systemctl enable greetd.service
+    # Seed new users with the upstream extras (dashboard, scripts, themes), then our config on top
+    XDG_CONFIG_HOME=/etc/skel/.config sh /usr/share/driftwm/extras/install.sh
+    cp /usr/share/my-fedora/driftwm-config.toml /etc/skel/.config/driftwm/config.toml
+
+    systemctl enable greetd.service cups.socket
+    systemctl --global enable fwupd-notify.timer
     systemctl set-default graphical.target
 else
-    rm -rf /etc/greetd /etc/skel/.config/driftwm  # driftwm-only files from system_files
+    # driftwm-only files from system_files; GNOME has its own charge limit toggle and firmware updates
+    rm -rf /etc/greetd /etc/skel/.config/kanshi /usr/lib/tmpfiles.d/thinkpad-battery.conf
 fi

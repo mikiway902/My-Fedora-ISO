@@ -1,0 +1,8 @@
+#!/bin/bash
+# driftwm has no GNOME Software to announce BIOS/EC/fingerprint firmware updates, so do it here.
+# fwupd-refresh.timer keeps the LVFS metadata fresh; get-updates exits 0 only when something is available.
+if fwupdmgr get-updates >/dev/null 2>&1; then
+    notify-send -a fwupd -i software-update-available "Доступно обновление прошивки" \
+        "Посмотреть: fwupdmgr get-updates. Установить: fwupdmgr update"
+fi
+exit 0

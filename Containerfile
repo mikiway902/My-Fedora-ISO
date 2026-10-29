@@ -12,7 +12,8 @@ RUN dnf5 -y install git make cargo rust pkgconf-pkg-config \
         libseat-devel libdisplay-info-devel libinput-devel mesa-libgbm-devel libxkbcommon-devel systemd-devel && \
     TAG="${DRIFTWM_VERSION:-$(git ls-remote --tags --refs --sort=-v:refname https://github.com/malbiruk/driftwm.git 'v*' | head -1 | sed 's#.*/##')}" && \
     git clone --depth 1 --branch "$TAG" https://github.com/malbiruk/driftwm.git /src && \
-    cd /src && make build && make install DESTDIR=/out PREFIX=/usr
+    cd /src && make build && make install DESTDIR=/out PREFIX=/usr && \
+    cp -r extras /out/usr/share/driftwm/extras
 
 # Allow build scripts to be referenced without being copied into the final image
 FROM scratch AS ctx

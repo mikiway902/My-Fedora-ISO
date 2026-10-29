@@ -1,0 +1,12 @@
+# kanshi switches monitor layouts when displays are plugged in. Names: `wlr-randr` or `kanshictl status`.
+# With no matching profile nothing changes, so this file is safe as is.
+
+profile laptop {
+    output eDP-1 enable
+}
+
+# Example: dock with an external monitor, laptop screen off
+# profile docked {
+#     output eDP-1 disable
+#     output DP-1 enable
+# }
