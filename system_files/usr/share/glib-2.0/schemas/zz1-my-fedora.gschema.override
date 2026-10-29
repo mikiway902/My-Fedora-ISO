@@ -1,3 +1,12 @@
-# GNOME image defaults: never auto-suspend while on AC (battery idle suspend stays as GNOME ships it)
+# GNOME image defaults; users can still change all of these in Settings / Tweaks / Extension Manager
+
+# Never auto-suspend while on AC (battery idle suspend stays as GNOME ships it)
 [org.gnome.settings-daemon.plugins.power]
 sleep-inactive-ac-type='nothing'
+
+# Tray icons (Telegram, Discord, Happ), dock, keep-awake toggle; extensions come from build.sh
+[org.gnome.shell]
+enabled-extensions=['appindicatorsupport@rgcjonas.gmail.com', 'dash-to-dock@micxgx.gmail.com', 'caffeine@patapon.info']
+
+[org.gnome.desktop.interface]
+monospace-font-name='JetBrains Mono 11'

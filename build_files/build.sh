@@ -44,6 +44,14 @@ APPS=(
     podman-docker podman-compose       # `docker` / `docker compose` on top of rootless podman
     btrfs-assistant snapper
     liberation-fonts-all google-carlito-fonts google-crosextra-caladea-fonts  # metric-compatible MS Office fonts
+    jetbrains-mono-fonts-all           # monospace for VS Code and terminals
+    hunspell-ru                        # Russian spell check (hunspell users: Firefox, GTK apps)
+)
+
+### GNOME only: tray icons, dock, keep-awake toggle, Tweaks
+[[ $VARIANT == gnome ]] && SESSION=(
+    gnome-shell-extension-appindicator gnome-shell-extension-dash-to-dock gnome-shell-extension-caffeine
+    gnome-tweaks
 )
 
 ### Apps from vendor RPMs, always the latest release at build time
@@ -86,6 +94,8 @@ if [[ $VARIANT == driftwm ]]; then
     systemctl set-default graphical.target
 else
     # driftwm-only files from system_files; GNOME has its own charge limit toggle and firmware updates
-    rm -rf /etc/greetd /etc/skel/.config/kanshi /usr/lib/tmpfiles.d/thinkpad-battery.conf
+    rm -rf /etc/greetd /etc/skel/.config/kanshi /etc/skel/.config/foot \
+        /usr/lib/tmpfiles.d/thinkpad-battery.conf /usr/lib/systemd/logind.conf.d/50-lid-ac.conf
     glib-compile-schemas /usr/share/glib-2.0/schemas  # picks up zz1-my-fedora.gschema.override
+    echo com.mattjakeman.ExtensionManager >> /usr/share/my-fedora/flatpaks
 fi
