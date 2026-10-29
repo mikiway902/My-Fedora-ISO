@@ -1,0 +1,13 @@
+[Unit]
+Description=Add Windows entry to the GRUB menu
+# /boot is not part of the image, so write it on the installed system; never touch a user-edited file
+ConditionPathExists=!/boot/grub2/custom.cfg
+ConditionPathIsDirectory=/boot/grub2
+RequiresMountsFor=/boot
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/cp /usr/share/my-fedora/grub-custom.cfg /boot/grub2/custom.cfg
+
+[Install]
+WantedBy=multi-user.target

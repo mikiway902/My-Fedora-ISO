@@ -1,0 +1,12 @@
+[Unit]
+Description=Install VS Code extensions from /usr/share/my-fedora/vscode-extensions
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/my-fedora-preinstall vscode-extensions
+# no network-online.target for user units: retry until the network is up
+Restart=on-failure
+RestartSec=60
+
+[Install]
+WantedBy=default.target

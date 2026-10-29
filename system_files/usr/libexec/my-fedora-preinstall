@@ -1,0 +1,25 @@
+#!/bin/bash
+# Installs what a list file names, once per list version: apps added to the list in a
+# new image get installed after the update, apps the user removed stay removed.
+#   my-fedora-preinstall flatpaks          (system service)
+#   my-fedora-preinstall vscode-extensions (user service)
+set -euo pipefail
+
+list="/usr/share/my-fedora/$1"
+if [[ $EUID -eq 0 ]]; then state=/var/lib/my-fedora; else state="${XDG_STATE_HOME:-$HOME/.local/state}/my-fedora"; fi
+done_file="$state/$1.done"
+
+mkdir -p "$state"
+touch "$done_file"
+new=$(comm -23 <(sort -u "$list") <(sort -u "$done_file"))
+[[ -z $new ]] && exit 0
+
+case $1 in
+    flatpaks)
+        flatpak remote-add --system --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+        flatpak install --system --noninteractive --or-update flathub $new ;;
+    vscode-extensions)
+        for ext in $new; do code --install-extension "$ext"; done ;;
+esac
+
+sort -u "$list" "$done_file" -o "$done_file"

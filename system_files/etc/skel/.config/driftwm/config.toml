@@ -1,0 +1,8 @@
+# driftwm only reads ~/.config/driftwm/config.toml; /etc/skel seeds it for new users.
+# Every option: /etc/driftwm/config.reference.toml. Partial configs merge with defaults.
+# XDG autostart (polkit agent, blueman applet) starts on its own.
+
+autostart = [
+    "swaync",                              # notifications
+    "swayidle -w before-sleep 'swaylock'", # lock before suspend
+]
