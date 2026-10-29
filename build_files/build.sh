@@ -87,4 +87,5 @@ if [[ $VARIANT == driftwm ]]; then
 else
     # driftwm-only files from system_files; GNOME has its own charge limit toggle and firmware updates
     rm -rf /etc/greetd /etc/skel/.config/kanshi /usr/lib/tmpfiles.d/thinkpad-battery.conf
+    glib-compile-schemas /usr/share/glib-2.0/schemas  # picks up zz1-my-fedora.gschema.override
 fi

@@ -10,8 +10,8 @@ autostart = [
     "wl-paste --watch cliphist store",             # clipboard history
     "wlsunset -l 55.7 -L 37.6",                    # night light; -l/-L = latitude/longitude (Moscow)
     "kanshi",                                      # monitor profiles: ~/.config/kanshi/config
-    # lock after 5 min, screen off after 5.5, suspend after 15; always lock before sleep
-    "swayidle -w timeout 300 'swaylock -f' timeout 330 \"wlopm --off '*'\" resume \"wlopm --on '*'\" timeout 900 'systemctl suspend' before-sleep 'swaylock -f'",
+    # lock after 5 min, screen off after 5.5, suspend after 15 on battery only; always lock before sleep
+    "swayidle -w timeout 300 'swaylock -f' timeout 330 \"wlopm --off '*'\" resume \"wlopm --on '*'\" timeout 900 /usr/libexec/my-fedora-suspend-on-battery before-sleep 'swaylock -f'",
 ]
 
 # Sloppy focus: windows don't overlap, so a cursor over a window is deliberate.

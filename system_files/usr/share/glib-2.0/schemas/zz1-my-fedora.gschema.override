@@ -1,0 +1,3 @@
+# GNOME image defaults: never auto-suspend while on AC (battery idle suspend stays as GNOME ships it)
+[org.gnome.settings-daemon.plugins.power]
+sleep-inactive-ac-type='nothing'
