@@ -312,15 +312,21 @@ _build-bib $target_image $tag $type $config: (_rootful_load_image target_image t
 
     BUILDTMP=$(mktemp -p "${PWD}" -d -t _build-bib.XXXXXXXXXX)
 
+    # No -it: BIB needs no TTY, and `podman run -t` fails on CI runners without one
+    # SELinux types only exist on SELinux hosts (CI runners are Ubuntu)
+    sec_opts=()
+    if [[ -e /sys/fs/selinux/enforce ]]; then
+        sec_opts+=(--security-opt label=type:unconfined_t)
+    fi
+
     sudo podman run \
       --rm \
-      -it \
       --privileged \
       --pull=newer \
       --net=host \
-      --security-opt label=type:unconfined_t \
-      -v $(pwd)/${config}:/config.toml:ro \
-      -v $BUILDTMP:/output \
+      "${sec_opts[@]}" \
+      -v "$(pwd)/${config}:/config.toml:ro" \
+      -v "$BUILDTMP:/output" \
       -v /var/lib/containers/storage:/var/lib/containers/storage \
       "${bib_image}" \
       ${args} \

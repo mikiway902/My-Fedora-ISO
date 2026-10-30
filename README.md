@@ -44,7 +44,7 @@
 ### Через GitHub (рекомендую)
 
 1. Запушьте репо на GitHub как `mikiway902/My-Fedora-ISO`. Если имя другое, поправьте `REPO_ORGANIZATION` в [image-template.env](image-template.env) и адреса в `disk_config/iso-*.toml`.
-2. Создайте ключ подписи, без него сборка падает:
+2. Создайте ключ подписи для контейнерных образов, без него `build.yml` падает на шаге подписи:
    ```bash
    COSIGN_PASSWORD="" cosign generate-key-pair
    ```
@@ -53,7 +53,7 @@
    ```
    Закоммитьте `cosign.pub`. `cosign.key` не коммитьте никогда, он уже в `.gitignore`.
 3. Push в `main` запускает `build.yml`, и он собирает оба образа параллельно. Сделайте оба пакета публичными в настройках GHCR.
-4. Actions → **Build disk images** → Run workflow. В Artifacts появятся `driftwm-anaconda-iso` и `gnome-anaconda-iso`.
+4. ISO: Actions → **Build disk images** → Run workflow → выберите `gnome`, `driftwm` или `both`. В Artifacts появятся `gnome-anaconda-iso` или `driftwm-anaconda-iso`. Подробности — [Download prebuilt ISO](#download-prebuilt-iso). Для сборки ISO секреты не нужны.
 
 ### Локально (Linux с podman и just)
 
@@ -66,6 +66,54 @@ VARIANT=gnome just build && VARIANT=gnome just build-iso
 ### Обновления после установки
 
 Система тянет новые сборки из GHCR сама (`bootc upgrade`). Поменяли `build.sh`, сделали push, перезагрузились, и изменения на месте. Откат: `sudo bootc rollback`.
+
+## Download prebuilt ISO
+
+Готовый загрузочный ISO можно скачать с GitHub, ничего не собирая на своём компьютере. Нужен только браузер.
+
+1. Откройте репозиторий на GitHub и вкладку **Actions**.
+2. В списке слева выберите **Build disk images**.
+3. Справа нажмите **Run workflow**.
+4. В поле **variant** выберите `gnome`, `driftwm` или `both` и нажмите зелёную **Run workflow**.
+5. Дождитесь зелёной галочки у запуска (обычно 30–60 минут). Варианты собираются независимо: если один упал, ISO второго всё равно загрузится.
+6. Внизу страницы запуска, в разделе **Artifacts**, скачайте нужный архив:
+
+   | Артефакт | Файл внутри |
+   |---|---|
+   | `gnome-anaconda-iso` | `my-fedora-iso-gnome.iso` |
+   | `driftwm-anaconda-iso` | `my-fedora-iso-driftwm.iso` |
+
+   Рядом с ISO в архиве лежит `SHA256SUMS.txt`.
+7. Артефакты хранятся **14 дней**, потом GitHub их удаляет. Скачайте ISO сразу; иначе запустите workflow заново.
+
+Это установщик Anaconda: загрузитесь с флешки и установите систему как обычную Fedora. После установки она сама обновляется из GHCR.
+
+### Запись на флешку
+
+Нужна флешка на 8 ГБ или больше. Всё её содержимое будет стёрто.
+
+- **Rufus (Windows).** Выберите флешку в поле «Устройство», нажмите «Выбрать» и укажите `.iso`. Схема раздела GPT, целевая система UEFI. Нажмите «Старт». Если Rufus предложит режим ISO или DD, выбирайте **DD**.
+- **balenaEtcher (Windows, Linux, macOS).** «Flash from file» → выберите ISO → «Select target» → флешка → «Flash!».
+
+После записи загрузитесь с флешки: F12 на логотипе Lenovo → USB.
+
+### Проверка SHA256
+
+Сравните хеш скачанного ISO со строкой в `SHA256SUMS.txt`.
+
+Windows (PowerShell):
+
+```powershell
+Get-FileHash .\my-fedora-iso-gnome.iso -Algorithm SHA256
+```
+
+Linux/macOS:
+
+```bash
+sha256sum -c SHA256SUMS.txt
+```
+
+На macOS вместо `sha256sum` используйте `shasum -a 256 -c SHA256SUMS.txt`. Если хеши не совпали, файл скачался с ошибкой — скачайте артефакт заново.
 
 ## Переключение driftwm ⇄ GNOME
 
