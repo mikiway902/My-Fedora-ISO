@@ -44,9 +44,10 @@ check_shellcheck() {
     if command -v shellcheck >/dev/null 2>&1; then
         shellcheck "${files[@]}"
     else
-        # Local fallback; CI installs shellcheck directly
+        # Local fallback. Pin the version Ubuntu 24.04 ships (used by CI) so
+        # that checks added or removed between releases cannot diverge.
         podman run --rm --security-opt label=disable -v "$PWD:/mnt" -w /mnt \
-            docker.io/koalaman/shellcheck:stable "${files[@]}"
+            docker.io/koalaman/shellcheck:v0.9.0 "${files[@]}"
     fi
 }
 
