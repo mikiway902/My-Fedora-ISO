@@ -46,7 +46,10 @@
 | [build_files/build.sh](build_files/build.sh) | Атомарная сборка: копирует `system_files`, ставит пакеты, opencode CLI и DeepSeek Harness |
 | [build_files/generate-kickstarts.sh](build_files/generate-kickstarts.sh) | Генерирует `driftwm.ks` и `gnome.ks` для классического установщика из тех же списков пакетов |
 | [build_files/classic-post.sh](build_files/classic-post.sh) | `%post` классической установки: RPM Fusion, COPR, vendor RPM, opencode CLI, DSH, `system_files` и сервисы |
-| [build_files/build-classic-iso.sh](build_files/build-classic-iso.sh) | Скачивает Fedora Everything netinst и добавляет kickstart и payload через `mkksiso` |
+| [build_files/build-classic-iso.sh](build_files/build-classic-iso.sh) | Скачивает Fedora Everything netinst, добавляет kickstart и payload через `mkksiso`, проверяет итоговый ISO |
+| [build_files/repo-urls.sh](build_files/repo-urls.sh) | Официальные URL Fedora для установщика (`dl.fedoraproject.org`), единый источник для kickstart, сборки и проверок |
+| [build_files/check-repos.sh](build_files/check-repos.sh) | Проверяет URL в kickstart, `repomd.xml`, primary/group-метаданные и `.treeinfo`; отличает ошибку конфигурации от сетевого сбоя |
+| [build_files/check-classic-iso.sh](build_files/check-classic-iso.sh) | Проверяет метку тома, `inst.stage2`/`inst.ks` в EFI и BIOS GRUB, встроенный kickstart, URL, payload и отсутствие устаревших версий |
 | [system_files/etc/tuned/](system_files/etc/tuned) | Профили TuneD для P14s Gen 2 AMD и отображение PPD → TuneD: balanced, power saver, performance |
 | [system_files/usr/bin/my-fedora-battery](system_files/usr/bin/my-fedora-battery) | Пороги заряда ThinkPad: `show`, `apply`, `set`, пресеты 75/80, 40/80, 95/100 |
 | [system_files/usr/bin/thinkpad-diagnostics](system_files/usr/bin/thinkpad-diagnostics) | Диагностика CPU, батареи, температур, сна, Wi-Fi/BT и NVMe |
@@ -100,10 +103,10 @@ opencode ставится как терминальная программа (н
 
 | Событие | Workflow | Результат |
 |---|---|---|
-| push в `main` / pull request | **Validate** | Justfile, shellcheck, bash -n, actionlint, kickstart (`ksvalidator`), systemd units, hadolint, TOML, unit-тесты; отдельная job проверяет имена пакетов в Fedora 44 |
+| push в `main` / pull request | **Validate** | Justfile, shellcheck, bash -n, actionlint, kickstart (`ksvalidator`), systemd units, hadolint, TOML, unit-тесты, версия Fedora, URL и метаданные репозиториев; отдельная job проверяет имена пакетов в Fedora |
 | push в `main`, ежедневно 06:05 MSK, вручную, тег `v*` | **Build container image** | Atomic-образы `gnome`/`driftwm` в GHCR, SBOM и build metadata |
 | вручную, тег `v*` | **Build disk images** | Atomic ISO + `SHA256SUMS.txt` + `build-info.txt` |
-| вручную, еженедельно, тег `v*` | **Build classic ISO** | Classic ISO + `SHA256SUMS.txt` + `build-info.txt` + kickstart + список пакетов |
+| вручную, еженедельно, тег `v*` | **Build classic ISO** | Проверка репозиториев, Classic ISO, проверка remastered ISO, `SHA256SUMS.txt`, `build-info.txt`, kickstart и список пакетов |
 
 Тег `v*` дополнительно публикует Atomic-образы под этим тегом. `latest` обновляется только после успешной сборки; упавшая сборка не перезаписывает его. Артефакты ISO/SBOM хранятся 14 дней.
 
@@ -133,10 +136,64 @@ just build-all-isos     # все четыре загрузочных ISO
 ```bash
 just check           # синтаксис Justfile
 just test            # локальные unit-тесты: батарея, kickstart, пакеты, диагностика
-just validate        # shellcheck, bash -n, actionlint, ksvalidator, systemd-analyze, hadolint, TOML
-just check-packages  # имена пакетов в Fedora 44 (в контейнере)
+just validate        # shellcheck, bash -n, actionlint, ksvalidator, репозитории, systemd-analyze, hadolint, TOML
+just check-packages  # имена пакетов в Fedora из image-template.env (в контейнере)
 just sbom            # SPDX-инвентарь уже собранного образа
+
+# отдельно: URL/repomd/treeinfo (1 = ошибка конфигурации, 2 = сеть)
+bash build_files/check-repos.sh
+
+# отдельно: проверка уже собранного Classic ISO
+bash build_files/check-classic-iso.sh output/bootiso/my-fedora-classic-gnome.iso gnome
 ```
+
+### Classic ISO: источники пакетов, сеть и DNS
+
+Classic ISO — это **сетевой установщик** (netinstall): на флешке находятся загрузчик, Anaconda и установочный образ, а RPM-пакеты скачиваются во время установки. Без сети Classic ISO установить нельзя. Atomic ISO устроен иначе: он ставит готовый образ из GHCR, а не собирает систему из RPM.
+
+Установщик получает пакеты из двух явно заданных официальных репозиториев:
+
+- установочный репозиторий: `https://dl.fedoraproject.org/pub/fedora/linux/releases/44/Everything/x86_64/os/`;
+- обновления на время установки: `https://dl.fedoraproject.org/pub/fedora/linux/updates/44/Everything/x86_64/`.
+
+`mirrors.fedoraproject.org` в установщике **не используется**. Это официальный metalink-редиректор с wildcard-CNAME и большим числом A/AAAA-записей; именно его разрешение было нестабильным в исходной ошибке (`Could not resolve host: mirrors.fedoraproject.org`, `Cannot prepare internal mirrorlist`). `dl.fedoraproject.org` — официальный хост загрузки Fedora с прямыми адресами. TLS, GPG и проверка подписей не отключаются.
+
+После установки система использует штатные файлы репозиториев Fedora (`fedora.repo`, `fedora-updates.repo`) с metalink, поэтому `dnf5 upgrade --refresh` работает как в обычной Fedora. Установщик и установленная система намеренно используют разные пути: установщик — фиксированные официальные URL, установленная система — штатные metalink-репозитории.
+
+Что нужно сети:
+
+- DHCP или настроенный Wi-Fi (в интерактивном установщике можно выбрать сеть);
+- DNS, который разрешает `dl.fedoraproject.org`;
+- исходящий HTTPS (443) к `dl.fedoraproject.org`;
+- IPv6 отключать не нужно: проект не меняет systemd-resolved, NetworkManager и DNS-настройки.
+
+Если Anaconda пишет `Failed to download metadata`, `Cannot resolve host`, `Cannot prepare internal mirrorlist` или `All mirrors were tried`:
+
+1. Переключитесь в консоль установщика: `Ctrl+Alt+F2` (или `Alt+Tab` к терминалу).
+2. Проверьте сеть и DNS:
+   ```bash
+   ip addr
+   ip route
+   cat /etc/resolv.conf
+   resolvectl status
+   getent hosts dl.fedoraproject.org
+   curl -I https://dl.fedoraproject.org/pub/fedora/linux/releases/44/Everything/x86_64/os/repodata/repomd.xml
+   ```
+3. Если `ping 1.1.1.1` работает, а `getent hosts dl.fedoraproject.org` — нет, проблема в DNS/роутере, а не в ISO. Попробуйте другой DNS в настройках сети установщика.
+4. `dnf: command not found` в консоли Anaconda — **не ошибка**: в минимальной среде установщика dnf может отсутствовать. Проверяйте сеть через `curl` и `getent`, а не через `dnf`.
+5. Логи установщика копируются на установленную систему в `/var/log/my-fedora-install/`:
+   - `installer/network.txt` — адреса, маршруты, DNS и коды ответа `repomd.xml`;
+   - `installer/repos.txt` — точные `url`/`repo` из kickstart;
+   - `installer/anaconda.log`, `installer/packaging.log`, `installer/dnf.log` — логи Anaconda;
+   - `post-nochroot.log`, `post.log`, `classic-post.log`, `system.txt` — этап после установки;
+   - `failures.log` и `warnings.log` — ошибки и некритичные сбои post-install.
+6. В самом установщике логи лежат в `/tmp/anaconda.log`, `/tmp/packaging.log`, `/tmp/dnf.log` и `/tmp/pre-anaconda-logs/`.
+
+CI проверяет цепочку до публикации:
+
+- `build_files/check-repos.sh` генерирует kickstart и сверяет URL с `repo-urls.sh`, затем скачивает `repomd.xml`, проверяет наличие primary/group-метаданных, размеры файлов и `.treeinfo` (`version`/`arch`). Код возврата `1` — ошибка конфигурации проекта, `2` — временная недоступность сети. В pull request проверка с кодом `2` только предупреждает; в сборке Classic ISO любой ненулевой код блокирует публикацию.
+- `build_files/check-classic-iso.sh` проверяет готовый ISO: метку тома, `inst.stage2` и `inst.ks` в EFI- и BIOS-GRUB, совпадение встроенного kickstart с сгенерированным, точные URL, payload-файлы, tar/gzip и отсутствие устаревших версий Fedora.
+- `build_files/tests/test-kickstarts.sh` и `test-version-consistency.sh` проверяют те же инварианты локально через `just test`.
 
 ### Обновления после установки
 
@@ -401,6 +458,39 @@ Fedora 45 перенесли с 20 октября на 27 октября (воз
 
 Остальное подтверждено: TLP или auto-cpufreq рядом с PPD или tuned-ppd ставить нельзя, systemd-юниты конфликтуют. `thermald` нужен только для Intel. Прошивки приходят через LVFS.
 
+### Проверка установки Classic ISO (VM или ноутбук)
+
+CI проверяет URL, kickstart и структуру ISO, но **не запускает реальную установку Anaconda**: для этого нужен KVM/железо, а разметка диска остаётся интерактивной. Поэтому после сборки ISO нужно один раз прогнать установку вручную.
+
+В VM (нужен KVM):
+
+```bash
+just run-vm-classic-iso
+# или скачайте артефакт classic-<variant>-iso из GitHub Actions
+```
+
+1. В меню GRUB проверьте, что в строке ядра есть `inst.stage2=hd:LABEL=...` и `inst.ks=hd:LABEL=...:/<variant>.ks`.
+2. Загрузите установщик и до начала установки откройте консоль (`Ctrl+Alt+F2`). Выполните проверки из раздела [Classic ISO: источники пакетов, сеть и DNS](#classic-iso-источники-пакетов-сеть-и-dns).
+3. Установите систему на одноразовый диск VM. После перезагрузки:
+   ```bash
+   sudo dnf5 repolist --all
+   sudo dnf5 upgrade --refresh
+   ls -l /var/log/my-fedora-install/
+   cat /var/log/my-fedora-install/installer/repos.txt
+   cat /var/log/my-fedora-install/completed
+   grep -R "Failed to download metadata\|Cannot resolve host\|All mirrors were tried" \
+     /var/log/my-fedora-install/installer/ || true
+   ```
+   В `installer/repos.txt` должны быть только `dl.fedoraproject.org` URL из kickstart. В `installer/anaconda.log` и `installer/packaging.log` не должно быть ошибок загрузки метаданных.
+4. Проверьте, что `classic-post.sh` завершился: есть файл `completed`, а в `warnings.log` только ожидаемые предупреждения сторонних репозиториев.
+
+На ноутбуке:
+
+1. Запишите ISO на флешку и загрузитесь с неё (F12 → USB).
+2. Повторите проверки сети в консоли установщика, затем установите Fedora рядом с Windows по разделу [Windows + Fedora на одном ноутбуке](#windows--fedora-на-одном-ноутбуке). EFI-раздел Windows не форматируйте.
+3. После первой загрузки выполните команды из шага 3 выше и убедитесь, что `sudo dnf5 upgrade --refresh` работает.
+4. Если установка не удалась, приложите к issue `/var/log/my-fedora-install/` (или логи из `/tmp` установщика) и вывод `ip addr`, `ip route`, `cat /etc/resolv.conf`, `resolvectl status`, `getent hosts dl.fedoraproject.org`.
+
 ## Проверка на ноутбуке
 
 Для любого варианта:
@@ -420,7 +510,7 @@ my-fedora-battery show                            # пороги и состоя
 ## Ограничения и что не проверено
 
 - **Физическое железо.** В рамках этой доработки проверены сборка Atomic-образов, `bootc container lint` (проходит; остаются предупреждения от пакетов greetd/blueman/fprintd о содержимом `/var`), диагностика и unit-тесты. Сон/пробуждение, Wi-Fi и Bluetooth после сна, сканер отпечатков, пороги заряда на конкретной прошивке и автономность нужно проверить на самом P14s Gen 2 AMD.
-- **Classic ISO.** Локально полная сборка не выполнялась: `mkksiso` → `mkefiboot` требует rootful podman. Kickstart проходит `ksvalidator`, пакеты разрешаются, но установку в VM/на железо ещё нужно прогнать через GitHub Actions и вручную.
+- **Classic ISO.** `build-classic-iso.sh` целиком локально не запускался: `mkksiso` → `mkefiboot` требует rootful podman. Однако gnome ISO был собран тем же конвейером `mkksiso` (в privileged-контейнере) и прошёл `check-classic-iso.sh`: метка тома, EFI/BIOS GRUB, встроенный kickstart, URL и payload. `check-repos.sh` и `check-classic-iso.sh` также встроены в CI. Реальная установка Anaconda в CI не запускается: её нужно прогнать в VM или на ноутбуке по процедуре выше. Это единственный способ проверить интерактивную разметку, загрузчик и post-install на конкретном железе.
 - **Atomic ISO.** Для сборки нужен `bootc-image-builder` с rootful podman; локально не запускался. Установка Atomic ISO требует сети и доступа к GHCR.
 - **Откат Atomic.** Механизм bootc/ostree не менялся; команды и поведение GRUB описаны выше, но реальный цикл «обновление → откат» на железе не прогонялся.
 - **SBOM.** Публикуется инвентарь пакетов SPDX из RPM-базы образа. Сканирование уязвимостей (grype/trivy) в CI не включено: нужен проверенный источник БД; при необходимости запускайте его отдельно по SBOM.

@@ -56,7 +56,7 @@ jobs:
         run: |
           set -euxo pipefail
           sudo apt-get update
-          sudo apt-get install -y podman xorriso file
+          sudo apt-get install -y podman xorriso file python3
 
       - name: Configure rootful Podman storage
         run: |
@@ -67,6 +67,18 @@ jobs:
 
       - name: Check Justfile syntax
         run: just check
+
+      - name: Check Fedora repositories (blocking)
+        shell: bash
+        run: |
+          set +e
+          bash build_files/check-repos.sh
+          rc=$?
+          set -e
+          if (( rc != 0 )); then
+            echo "::error::Fedora repository check failed (exit ${rc}); refusing to build/publish an unverified ISO."
+            exit "${rc}"
+          fi
 
       - name: Build classic ISO
         # Rootful on purpose: the driftwm build stage and mkksiso run in podman
@@ -88,6 +100,10 @@ jobs:
           test -f "${src}" || { echo "::error::${src} was not produced"; exit 1; }
           test -s "${src}" || { echo "::error::${src} is empty"; exit 1; }
 
+          bash build_files/check-classic-iso.sh "${src}" "${VARIANT}" \
+            --expected-ks "output/classic/${VARIANT}/${VARIANT}.ks" \
+            --payload-dir "output/classic/${VARIANT}"
+
           mv "${src}" "${iso}"
 
           bytes=$(stat -c %s "${iso}")
@@ -96,28 +112,6 @@ jobs:
             echo "::error::${iso} is too small to be a bootable Fedora ISO"
             exit 1
           fi
-
-          dd if="${iso}" of=/dev/null bs=1M count=64 status=none
-          test "$(dd if="${iso}" bs=1 skip=32769 count=5 status=none)" = "CD001"
-          file "${iso}" | grep -q 'ISO 9660'
-
-          boot=$(xorriso -indev "${iso}" -report_el_torito plain 2>&1) || {
-            echo "${boot}"
-            echo "::error::xorriso could not read ${iso}"
-            exit 1
-          }
-          grep -q 'El Torito boot img' <<<"${boot}" || {
-            echo "::error::${iso} has no El Torito boot catalog"
-            exit 1
-          }
-          xorriso -indev "${iso}" -ls /images/pxeboot 2>/dev/null | grep -q vmlinuz || {
-            echo "::error::${iso} has no /images/pxeboot/vmlinuz (not an Anaconda installer)"
-            exit 1
-          }
-          xorriso -indev "${iso}" -ls / 2>/dev/null | grep -q classic-post.sh || {
-            echo "::error::${iso} does not contain the classic install payload"
-            exit 1
-          }
 
           ( cd "${dir}" && sha256sum "my-fedora-classic-${VARIANT}.iso" > SHA256SUMS.txt )
           ( cd "${dir}" && sha256sum -c SHA256SUMS.txt )

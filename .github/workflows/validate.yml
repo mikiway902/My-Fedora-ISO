@@ -32,7 +32,7 @@ jobs:
         run: |
           set -euxo pipefail
           sudo apt-get update
-          sudo apt-get install -y podman shellcheck xorriso
+          sudo apt-get install -y podman shellcheck xorriso python3
 
       - name: Check Justfile syntax
         run: just check
@@ -54,8 +54,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y podman
 
-      - name: Resolve package lists in Fedora 44
+      - name: Read Fedora version
+        run: |
+          set -euo pipefail
+          version=$(sed -n 's/^FEDORA_VERSION="\{0,1\}\([0-9][0-9]*\)"\{0,1\}$/\1/p' image-template.env | head -1)
+          test -n "${version}"
+          echo "FEDORA_VERSION=${version}" >> "$GITHUB_ENV"
+
+      - name: Resolve package lists in Fedora
         run: |
           set -euxo pipefail
-          podman run --rm -v "$PWD:/repo:Z" -w /repo quay.io/fedora/fedora:44 \
+          podman run --rm -v "$PWD:/repo:Z" -w /repo "quay.io/fedora/fedora:${FEDORA_VERSION}" \
             bash build_files/check-packages.sh

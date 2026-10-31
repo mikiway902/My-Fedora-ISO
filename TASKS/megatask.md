@@ -78,10 +78,14 @@
 
 - [x] Classic ISO: SHA256 исходного Fedora Everything ISO проверяется по официальному CHECKSUM
 - [x] Classic kickstart: без bootc, пакеты из репозиториев Fedora
-- [x] Classic %post: третьи стороны best-effort, сеть не роняет установку
+- [x] Classic kickstart: явные официальные URL установщика (`dl.fedoraproject.org`), без metalink `mirrors.fedoraproject.org`
+- [x] Classic kickstart: DHCP, retries/timeout пакетов, `%pre` staging, `%post --nochroot` и chroot `%post`
+- [x] Classic %post: третьи стороны best-effort, сеть не роняет установку, логи в `/var/log/my-fedora-install/`
 - [x] Classic: пункт Windows в GRUB через `/etc/grub.d/40_custom` (Atomic — через bootupd/custom.cfg)
 - [x] Atomic ISO: retry + понятное сообщение при недоступности GHCR
 - [x] Ручная разметка и создание пользователя через initial-setup
+- [x] Classic ISO: CI проверяет `repomd.xml`, primary/group-метаданные и `.treeinfo`
+- [x] Classic ISO: CI проверяет метку тома, `inst.stage2`/`inst.ks`, встроенный kickstart, payload и версию Fedora
 - [ ] Проверить чистую установку, Dual Boot, существующий EFI на железе
 
 ## 10. Безопасность
@@ -103,19 +107,24 @@
 - [x] Atomic ISOs и Classic ISOs: manual, Classic ещё и по расписанию/тегу
 - [x] Артефакты только после проверки ISO
 - [x] build metadata и SHA256SUMS
+- [x] `check-repos.sh`: ошибка конфигурации (1) отличается от сетевого сбоя (2)
+- [x] Build classic: любой провал проверки репозиториев/ISO блокирует публикацию
+- [x] `test-version-consistency.sh`: единая версия Fedora в build-файлах и kickstart
 - [ ] Проверить workflows в GitHub Actions (нужен push)
 
 ## 12. Документация
 
 - [x] README: четыре варианта, установка, Dual Boot, обновления, откат
 - [x] README: профили питания, пороги заряда, диагностика, сборка, CI
+- [x] README: источники Classic ISO, сеть/DNS, диагностика и ручная проверка установки
 - [x] Ограничения и непроверенные функции отмечены
 
 ## 13. Финальная проверка
 
 - [x] `just check`, `just test`, `just validate` локально
-- [ ] Собрать все четыре варианта (Atomic — локально можно, Classic ISO —
-      нужен rootful podman/пароль)
+- [ ] Собрать все четыре варианта (Classic gnome ISO собран через `mkksiso` и
+      прошёл `check-classic-iso.sh`; Classic driftwm и Atomic локально не
+      пересобирались)
 - [ ] Прогнать GitHub Actions
 - [ ] Проверить на физическом ThinkPad P14s Gen 2 AMD
 

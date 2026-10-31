@@ -1,11 +1,15 @@
 #!/bin/bash
 # Source validation that does not build an image.
 #
-# Needs shellcheck, python3 and podman. Container checks use the same Fedora 44
-# image as the classic ISO, so ksvalidator and systemd-analyze match Fedora.
+# Needs shellcheck, python3, curl and podman. Container checks use the same
+# Fedora image as the classic ISO, so ksvalidator and systemd-analyze match it.
 set -uo pipefail
 
 cd "$(dirname "$0")/.." || exit 1
+
+# shellcheck source=repo-urls.sh
+# shellcheck disable=SC1091
+source build_files/repo-urls.sh
 
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
@@ -70,14 +74,16 @@ check_actionlint() {
 
 check_kickstarts() {
     bash build_files/generate-kickstarts.sh "$TMP/ks" both || return 1
-    podman run --rm --security-opt label=disable -v "$TMP/ks:/ks" quay.io/fedora/fedora:44 bash -euxo pipefail -c '
+    podman run --rm --security-opt label=disable -v "$TMP/ks:/ks" \
+        "quay.io/fedora/fedora:${FEDORA_VERSION}" bash -euxo pipefail -c '
         dnf5 -y install pykickstart >/dev/null
         ksvalidator /ks/driftwm.ks /ks/gnome.ks
     '
 }
 
 check_units() {
-    podman run --rm --security-opt label=disable -v "$PWD/system_files:/sf:ro" -w /sf quay.io/fedora/fedora:44 bash -euxo pipefail -c '
+    podman run --rm --security-opt label=disable -v "$PWD/system_files:/sf:ro" -w /sf \
+        "quay.io/fedora/fedora:${FEDORA_VERSION}" bash -euxo pipefail -c '
         dnf5 -y install systemd >/dev/null
         cp -a usr/libexec/my-fedora-* /usr/libexec/
         cp -a usr/bin/my-fedora-* usr/bin/thinkpad-diagnostics /usr/bin/
@@ -92,10 +98,23 @@ check_containerfile() {
         --failure-threshold error Containerfile
 }
 
+# A transient network failure must not block a pull request, but a wrong URL
+# or broken metadata must.
+check_repos() {
+    bash build_files/check-repos.sh
+    local rc=$?
+    if ((rc == 2)); then
+        printf 'WARNING: Fedora hosts are temporarily unreachable; live repository check skipped\n' >&2
+        return 0
+    fi
+    return $rc
+}
+
 run_step "Bash syntax" check_bash_syntax
 run_step "ShellCheck" check_shellcheck
 run_step "TOML" check_toml
 run_step "Actionlint" check_actionlint
+run_step "Fedora repositories" check_repos
 run_step "Kickstarts" check_kickstarts
 run_step "systemd units" check_units
 run_step "Containerfile" check_containerfile

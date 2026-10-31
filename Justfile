@@ -128,6 +128,8 @@ build $target_image=image_name $tag=default_tag:
     # hash the inputs so a changed script always invalidates the build cache
     FILES_SHA=$(find build_files system_files -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)
     BUILD_ARGS+=("--build-arg" "BUILD_FILES_SHA=${FILES_SHA}")
+    # Keep the Containerfile bases on the same Fedora major as the Classic ISO
+    BUILD_ARGS+=("--build-arg" "FEDORA_VERSION={{ fedora_version }}")
 
     # This actually builds the image!
     PODMAN_BUILD_ARGS=("${BUILD_ARGS[@]}" "${LABELS[@]}" --pull=newer --tag "${target_image}:${tag}" --target "{{ variant }}" --file Containerfile)
@@ -457,12 +459,12 @@ test:
 validate:
     bash build_files/validate.sh
 
-# Resolve the Fedora package lists inside a Fedora 44 container
+# Resolve the Fedora package lists inside the configured Fedora container
 [group('Just')]
 check-packages:
     #!/usr/bin/env bash
     set -euo pipefail
-    podman run --rm -v "$PWD:/repo:Z" -w /repo quay.io/fedora/fedora:44 \
+    podman run --rm -v "$PWD:/repo:Z" -w /repo "quay.io/fedora/fedora:{{ fedora_version }}" \
         bash build_files/check-packages.sh
 
 # Generate an SPDX package inventory for a built image
