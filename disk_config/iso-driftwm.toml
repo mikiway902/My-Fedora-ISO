@@ -1,7 +1,22 @@
 [customizations.installer.kickstart]
 contents = """
-%post
-bootc switch --mutate-in-place --transport registry ghcr.io/mikiway902/my-fedora-iso-driftwm:latest
+%post --erroronfail
+set -euxo pipefail
+# The ISO installs the image from GHCR; fail with a readable message instead of
+# leaving a half-configured system when the registry or network is unavailable.
+if ! getent hosts ghcr.io >/dev/null; then
+    echo "my-fedora: нет DNS/сети для ghcr.io. Проверьте подключение и повторите установку." >&2
+    exit 1
+fi
+for attempt in 1 2 3; do
+    if bootc switch --mutate-in-place --transport registry ghcr.io/mikiway902/my-fedora-iso-driftwm:latest; then
+        exit 0
+    fi
+    echo "my-fedora: попытка ${attempt} не удалась, повтор через 10 секунд" >&2
+    sleep 10
+done
+echo "my-fedora: не удалось загрузить ghcr.io/mikiway902/my-fedora-iso-driftwm:latest. Проверьте сеть и доступ к GHCR." >&2
+exit 1
 %end
 """
 

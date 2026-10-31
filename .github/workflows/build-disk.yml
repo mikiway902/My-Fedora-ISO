@@ -139,6 +139,7 @@ jobs:
 
           ( cd "${dir}" && sha256sum "my-fedora-iso-${VARIANT}.iso" > SHA256SUMS.txt )
           ( cd "${dir}" && sha256sum -c SHA256SUMS.txt )
+          bash build_files/build-info.sh "atomic-iso-${VARIANT}" "${iso}" > "${dir}/build-info.txt"
           ls -lh "${dir}"
 
       - name: Upload ISO and checksum to job artifacts

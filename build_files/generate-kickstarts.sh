@@ -6,6 +6,7 @@ set -euo pipefail
 
 OUT_DIR=${1:?usage: generate-kickstarts.sh OUT_DIR [driftwm|gnome|both]}
 VARIANT=${2:-both}
+FEDORA_VERSION=${FEDORA_VERSION:-44}
 
 # shellcheck disable=SC1091
 source "$(dirname "$0")/packages.sh"
@@ -19,7 +20,7 @@ write_packages() {
 
 write_driftwm() {
     cat <<EOF
-# Classic Fedora + driftwm, installed by Anaconda from Fedora Everything.
+# Classic Fedora ${FEDORA_VERSION} + driftwm, installed by Anaconda from Fedora Everything.
 # Storage is intentionally left interactive: this laptop dual-boots Windows.
 
 lang en_US.UTF-8
@@ -36,9 +37,7 @@ rootpw --lock
 
     initial-setup
 EOF
-    write_packages DRIFTWM_SESSION
-    write_packages LAPTOP
-    write_packages APPS
+    write_packages DRIFTWM_ALL_PACKAGES
     cat <<'EOF'
 
 %end
@@ -66,7 +65,7 @@ EOF
 
 write_gnome() {
     cat <<EOF
-# Classic Fedora Workstation, installed by Anaconda from Fedora Everything.
+# Classic Fedora ${FEDORA_VERSION} Workstation, installed by Anaconda from Fedora Everything.
 # Storage is intentionally left interactive: this laptop dual-boots Windows.
 
 lang en_US.UTF-8
@@ -83,9 +82,7 @@ rootpw --lock
 
     gnome-initial-setup
 EOF
-    write_packages GNOME_SESSION
-    write_packages LAPTOP
-    write_packages APPS
+    write_packages GNOME_ALL_PACKAGES
     cat <<'EOF'
 
 %end

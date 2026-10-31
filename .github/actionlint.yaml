@@ -1,0 +1,5 @@
+# GitHub hosted runner used by the atomic image build. Newer than actionlint's
+# bundled label list, so declare it as a known label.
+self-hosted-runner:
+  labels:
+    - ubuntu-26.04

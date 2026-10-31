@@ -1,0 +1,236 @@
+#!/bin/bash
+# Hardware diagnostics for the ThinkPad P14s Gen 2 AMD (and other Fedora hosts).
+#
+# Read-only: it never changes power, firmware or sysfs settings. Missing
+# sensors, tools or permissions are reported instead of failing, so the script
+# is safe to run as a normal user (SMART and some firmware details need root).
+#
+# Usage: thinkpad-diagnostics [--report FILE]
+set -uo pipefail
+
+REPORT=""
+while (($#)); do
+    case $1 in
+        --report)
+            REPORT=${2:?--report needs a file name}
+            shift 2
+            ;;
+        --help | -h)
+            sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'
+            exit 0
+            ;;
+        *)
+            printf 'thinkpad-diagnostics: unknown option: %s\n' "$1" >&2
+            exit 2
+            ;;
+    esac
+done
+
+section() { printf '\n== %s ==\n' "$1"; }
+
+kv() { printf '%-24s %s\n' "$1:" "$2"; }
+
+read_value() {
+    [[ -r $1 ]] && tr -d '\n' <"$1" 2>/dev/null || true
+}
+
+have() { command -v "$1" >/dev/null 2>&1; }
+
+cpu_section() {
+    section "CPU"
+    kv "Модель" "$(awk -F': ' '/^model name/{print $2; exit}' /proc/cpuinfo)"
+    kv "Ядра / потоки" "$(nproc) / $(grep -c '^processor' /proc/cpuinfo)"
+    kv "Драйвер cpufreq" "$(read_value /sys/devices/system/cpu/cpu0/cpufreq/scaling_driver)"
+    kv "Governor" "$(read_value /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor)"
+    kv "EPP" "$(read_value /sys/devices/system/cpu/cpu0/cpufreq/energy_performance_preference)"
+    kv "AMD P-State" "$(read_value /sys/devices/system/cpu/amd_pstate/status)"
+    kv "Boost" "$(read_value /sys/devices/system/cpu/cpufreq/policy0/boost)"
+    kv "Мин. / макс. частота" \
+        "$(read_value /sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq) / $(read_value /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq) kHz"
+    kv "Текущая частота" "$(read_value /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq) kHz"
+}
+
+power_section() {
+    section "Питание и профили"
+    local profile=""
+    if have powerprofilesctl; then
+        profile=$(powerprofilesctl get 2>/dev/null)
+    elif have busctl; then
+        profile=$(busctl get-property net.hadess.PowerProfiles /net/hadess/PowerProfiles \
+            net.hadess.PowerProfiles ActiveProfile 2>/dev/null | awk '{print $2}' | tr -d '"')
+    fi
+    kv "Активный профиль" "${profile:-недоступен}"
+    kv "tuned-ppd enabled" "$(systemctl is-enabled tuned-ppd 2>/dev/null || true)"
+    kv "tuned-ppd active" "$(systemctl is-active tuned-ppd 2>/dev/null || true)"
+    for package in tuned-ppd power-profiles-daemon tlp auto-cpufreq; do
+        if rpm -q "$package" >/dev/null 2>&1; then
+            kv "Пакет" "$(rpm -q "$package")"
+        fi
+    done
+
+    local led backlight
+    for led in /sys/class/leds/*kbd*; do
+        [[ -d $led ]] || continue
+        kv "Подсветка клавиатуры" "$(read_value "$led/brightness")"
+    done
+    for backlight in /sys/class/backlight/*; do
+        [[ -d $backlight ]] || continue
+        kv "Яркость $(basename "$backlight")" \
+            "$(read_value "$backlight/brightness") / $(read_value "$backlight/max_brightness")"
+    done
+}
+
+battery_section() {
+    section "Аккумулятор"
+    local found=0 dir design full
+    for dir in /sys/class/power_supply/BAT*; do
+        [[ -d $dir ]] || continue
+        found=1
+        printf '%s\n' "$(basename "$dir")"
+        kv "  Производитель" "$(read_value "$dir/manufacturer")"
+        kv "  Модель" "$(read_value "$dir/model_name")"
+        kv "  Статус" "$(read_value "$dir/status")"
+        kv "  Заряд" "$(read_value "$dir/capacity")%"
+        kv "  Циклы" "$(read_value "$dir/cycle_count")"
+
+        design=$(read_value "$dir/energy_full_design")
+        full=$(read_value "$dir/energy_full")
+        if [[ -n $design && $design =~ ^[0-9]+$ ]]; then
+            kv "  Проектная ёмкость" "$(awk -v u="$design" 'BEGIN{printf "%.1f Wh", u/1000000}')"
+        fi
+        if [[ -n $full && $full =~ ^[0-9]+$ ]]; then
+            kv "  Текущая ёмкость" "$(awk -v u="$full" 'BEGIN{printf "%.1f Wh", u/1000000}')"
+        fi
+
+        kv "  Порог начала заряда" "$(read_value "$dir/charge_control_start_threshold")"
+        kv "  Порог конца заряда" "$(read_value "$dir/charge_control_end_threshold")"
+    done
+    ((found)) || printf 'Батарея не найдена.\n'
+}
+
+thermal_section() {
+    section "Температуры"
+    local found=0 hw name temp
+    for hw in /sys/class/hwmon/hwmon*; do
+        [[ -d $hw ]] || continue
+        name=$(read_value "$hw/name")
+        for temp in "$hw"/temp*_input; do
+            [[ -r $temp ]] || continue
+            local value
+            value=$(read_value "$temp")
+            [[ -n $value ]] || continue
+            found=1
+            printf '  %-16s %s °C\n' "${name:-unknown}" \
+                "$(awk -v m="$value" 'BEGIN{printf "%.1f", m/1000}')"
+        done
+    done
+    ((found)) || printf 'Датчики hwmon не найдены.\n'
+    if have sensors; then
+        printf '\n-- sensors --\n'
+        sensors 2>/dev/null | head -40
+    fi
+}
+
+sleep_section() {
+    section "Сон и пробуждение"
+    kv "mem_sleep" "$(read_value /sys/power/mem_sleep)"
+    kv "state" "$(read_value /sys/power/state)"
+    kv "Успешных suspend" "$(read_value /sys/power/suspend_stats/success)"
+    kv "Ошибок suspend" "$(read_value /sys/power/suspend_stats/fail)"
+    kv "Последняя ошибка" "$(read_value /sys/power/suspend_stats/last_failed_dev)"
+    if have journalctl; then
+        printf '\n-- последние записи ядра о сне --\n'
+        journalctl -k -b --no-pager -n 200 2>/dev/null |
+            grep -E 'PM: suspend|s2idle|ACPI: Low-power' | tail -8 || true
+    fi
+}
+
+network_section() {
+    section "Wi-Fi и Bluetooth"
+    if have lspci; then
+        lspci -nnk 2>/dev/null | awk '
+            /Network controller|Ethernet controller/ {show=1; print ""}
+            show {print}
+            show && /^[^ \t]/ && !/Network controller|Ethernet controller/ {show=0}
+        '
+    fi
+    local dev
+    for dev in /sys/class/net/*/wireless; do
+        [[ -e $dev ]] || continue
+        dev=$(basename "$(dirname "$dev")")
+        kv "Интерфейс $dev" "$(read_value "/sys/class/net/$dev/operstate")"
+        if have iw; then
+            iw dev "$dev" get power_save 2>/dev/null | sed 's/^/  /' || true
+        fi
+    done
+    if have rfkill; then
+        printf '\n-- rfkill --\n'
+        rfkill list 2>/dev/null || true
+    fi
+    if have bluetoothctl; then
+        printf '\n-- bluetoothctl --\n'
+        bluetoothctl show 2>/dev/null | grep -E 'Controller|Powered|Discovering' || true
+    fi
+    if have lsusb; then
+        lsusb 2>/dev/null | grep -i -E 'bluetooth|fingerprint' || true
+    fi
+}
+
+storage_section() {
+    section "Накопитель и файловая система"
+    if have lsblk; then
+        printf '%s\n' '-- lsblk --'
+        lsblk -o NAME,SIZE,MODEL,FSTYPE,MOUNTPOINTS 2>/dev/null || true
+    fi
+    kv "Корень" "$(findmnt -no FSTYPE,OPTIONS / 2>/dev/null || true)"
+    kv "Свободно на /" "$(df -h / 2>/dev/null | awk 'NR==2{print $4" из "$2}')"
+    if [[ $(findmnt -no FSTYPE / 2>/dev/null) == btrfs ]]; then
+        printf '\n-- btrfs --\n'
+        btrfs filesystem usage / 2>/dev/null | head -20 || true
+    fi
+    if have nvme; then
+        printf '\n-- nvme --\n'
+        nvme list 2>/dev/null || true
+    fi
+    if have smartctl && [[ $(id -u) -eq 0 ]]; then
+        printf '\n-- SMART nvme0 --\n'
+        smartctl -H -A /dev/nvme0 2>/dev/null | head -30 || true
+    elif have smartctl; then
+        printf '\nSMART: нужен root (sudo thinkpad-diagnostics).\n'
+    fi
+}
+
+firmware_section() {
+    section "Прошивка и обновления"
+    if have fwupdmgr; then
+        kv "fwupd" "$(fwupdmgr --version 2>/dev/null | head -1)"
+    else
+        printf 'fwupdmgr не установлен.\n'
+    fi
+    if have bootc; then
+        printf '\n-- bootc status --\n'
+        bootc status 2>/dev/null || true
+    fi
+}
+
+main() {
+    printf 'ThinkPad diagnostics — %s\n' "$(date -Is)"
+    printf 'Хост: %s, ядро: %s\n' "$(hostname)" "$(uname -r)"
+    cpu_section
+    power_section
+    battery_section
+    thermal_section
+    sleep_section
+    network_section
+    storage_section
+    firmware_section
+    printf '\nГотово.\n'
+    return 0
+}
+
+if [[ -n $REPORT ]]; then
+    mkdir -p "$(dirname "$REPORT")" || exit 2
+    main | tee "$REPORT"
+else
+    main
+fi

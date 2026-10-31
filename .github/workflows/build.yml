@@ -9,15 +9,19 @@ on:
   push:
     branches:
       - main
+    tags:
+      - 'v*'
     paths-ignore:
       - '**/README.md'
+      - 'TASKS/**'
+      - 'TODO.md'
   workflow_dispatch:
 
 env:
   IMAGE_REGISTRY: "ghcr.io/${{ github.repository_owner }}"  # do not edit
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}-${{ inputs.brand_name}}-${{ inputs.stream_name }}
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
   cancel-in-progress: true
 
 jobs:
@@ -98,12 +102,33 @@ jobs:
       #      ${IMAGE_NAME} \
       #      ${DEFAULT_TAG}
 
+      - name: Generate SBOM
+        # Package inventory from the image's RPM database, no extra service
+        run: |
+          set -euxo pipefail
+          just sbom "${IMAGE_NAME}" "${DEFAULT_TAG}" "sbom-${VARIANT}.spdx.json"
+          test -s "sbom-${VARIANT}.spdx.json"
+
+      - name: Upload SBOM
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: atomic-${{ matrix.variant }}-sbom
+          path: sbom-${{ matrix.variant }}.spdx.json
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Generate Build Tags
         id: gen-build-tags
         run: |
           alias_tags="$(just generate-build-tags \
                         ${IMAGE_NAME} \
                         ${DEFAULT_TAG})"
+
+          # A v* tag push publishes the same image under the release tag too
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            alias_tags="${alias_tags} ${GITHUB_REF_NAME}"
+          fi
 
           echo "Tags for this Action..."
           echo "${alias_tags}"
@@ -123,14 +148,14 @@ jobs:
       # They also check if the runner is on the default branch so that things like the merge queue (if you enable it), are going to work
       - name: Login to GitHub Container Registry
         uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
-        if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        if: github.event_name != 'pull_request' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || startsWith(github.ref, 'refs/tags/v'))
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Push To GHCR
-        if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        if: github.event_name != 'pull_request' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || startsWith(github.ref, 'refs/tags/v'))
         id: push-image
         env:
           ALIAS_TAGS: ${{ steps.gen-build-tags.outputs.alias_tags }}
@@ -150,14 +175,14 @@ jobs:
       # to consume. For more details, review the image signing section of the README.
       - name: Install Cosign
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
-        if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        if: github.event_name != 'pull_request' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || startsWith(github.ref, 'refs/tags/v'))
         with:
           # be careful when upgrading major versions
           cosign-release: 'v3.1.2'
 
       - name: Sign container image
         id: sign-image
-        if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        if: github.event_name != 'pull_request' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || startsWith(github.ref, 'refs/tags/v'))
         env:
           COSIGN_EXPERIMENTAL: false
           COSIGN_PRIVATE_KEY: ${{ secrets.SIGNING_SECRET }}
@@ -167,4 +192,24 @@ jobs:
           # https://github.com/coreos/rpm-ostree/issues/5509
           # use old bundle format, so we can use newer cosign 3.X.X instead of 2.X.X
           cosign sign -y --new-bundle-format=false --use-signing-config=false --key env://COSIGN_PRIVATE_KEY ${IMAGE_REGISTRY}/${IMAGE_NAME}@${DIGEST}
+
+      - name: Write build metadata
+        if: github.event_name != 'pull_request' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || startsWith(github.ref, 'refs/tags/v'))
+        run: |
+          set -euxo pipefail
+          bash build_files/build-info.sh "atomic-${VARIANT}" > "build-info-${VARIANT}.txt"
+          {
+            echo "image=${IMAGE_REGISTRY}/${IMAGE_NAME}"
+            echo "digest=${{ steps.push-image.outputs.digest }}"
+            echo "tags=${{ steps.gen-build-tags.outputs.alias_tags }}"
+          } >> "build-info-${VARIANT}.txt"
+
+      - name: Upload build metadata
+        if: github.event_name != 'pull_request' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || startsWith(github.ref, 'refs/tags/v'))
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: atomic-${{ matrix.variant }}-metadata
+          path: build-info-${{ matrix.variant }}.txt
+          if-no-files-found: error
+          retention-days: 14
 

@@ -53,6 +53,26 @@ if [[ ! -f $ISO ]]; then
     mv "$ISO.part" "$ISO"
 fi
 
+echo "==> Verifying SHA256 of $ISO_NAME"
+if [[ $ISO_NAME =~ ^Fedora-Everything-netinst-${ARCH}-(.+)\.iso$ ]]; then
+    RELEASE=${BASH_REMATCH[1]}
+else
+    echo "cannot parse the release from $ISO_NAME" >&2
+    exit 1
+fi
+CHECKSUM_NAME="Fedora-Everything-${RELEASE}-${ARCH}-CHECKSUM"
+CHECKSUM="$CACHE/$CHECKSUM_NAME"
+if [[ ! -f $CHECKSUM ]]; then
+    curl -fL --retry 5 --retry-all-errors -o "$CHECKSUM.part" \
+        "https://download.fedoraproject.org/pub/fedora/linux/releases/${FEDORA_VERSION}/Everything/${ARCH}/iso/${CHECKSUM_NAME}"
+    mv "$CHECKSUM.part" "$CHECKSUM"
+fi
+if ! ( cd "$CACHE" && grep -F "(${ISO_NAME})" "$CHECKSUM" | sha256sum -c - ); then
+    echo "SHA256 verification failed for $ISO_NAME" >&2
+    rm -f "$ISO"
+    exit 1
+fi
+
 echo "==> Remastering ISO with kickstart and payload (mkksiso in Fedora container)"
 rm -f "$WORK/out.iso"
 

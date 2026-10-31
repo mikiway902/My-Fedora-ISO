@@ -11,15 +11,15 @@ done_file="$state/$1.done"
 
 mkdir -p "$state"
 touch "$done_file"
-new=$(comm -23 <(sort -u "$list") <(sort -u "$done_file"))
-[[ -z $new ]] && exit 0
+mapfile -t new < <(comm -23 <(sort -u "$list") <(sort -u "$done_file"))
+[[ ${#new[@]} -eq 0 ]] && exit 0
 
 case $1 in
     flatpaks)
         flatpak remote-add --system --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-        flatpak install --system --noninteractive --or-update flathub $new ;;
+        flatpak install --system --noninteractive --or-update flathub "${new[@]}" ;;
     vscode-extensions)
-        for ext in $new; do code --install-extension "$ext"; done ;;
+        for ext in "${new[@]}"; do code --install-extension "$ext"; done ;;
 esac
 
 sort -u "$list" "$done_file" -o "$done_file"

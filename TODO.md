@@ -1,39 +1,35 @@
-# TODO: классическая сборка (без атомарности)
+# TODO: My-Fedora-ISO
 
-Состояние на 2026-10-31. Атомарная сборка сохранена, рядом добавлен классический
-netinstall-ISO на базе Fedora Everything.
+Полный чек-лист большого ТЗ лежит в [TASKS/megatask.md](TASKS/megatask.md).
+Здесь — краткое состояние.
 
 ## Готово
 
-- Общие списки пакетов `build_files/packages.sh` для атомарной и классической сборки.
-- Атомарные образы `driftwm` и `gnome` собираются после рефакторинга, `bootc container lint` проходит.
-- opencode CLI (`/usr/bin/opencode`), DeepSeek Harness (`dsh`) и конфиг без запросов
-  разрешений (`/etc/skel/.config/opencode/opencode.json`) проверены в контейнере.
-- Расширение VS Code `sst-dev.opencode` добавлено в `vscode-extensions`.
-- RuDesktop убран из всех образов.
-- Kickstart-файлы генерируются из актуального `packages.sh` и проходят `ksvalidator`
-  (проверено в контейнере `quay.io/fedora/fedora:44`).
-- Проверено, что в netinst включены онлайн-репозитории Fedora (`fedora`, `updates`)
-  с GPG-ключами, и что списки пакетов разрешаются (gnome — 1844 пакета, driftwm — 1121).
-- Проверено, что RPM Fusion, `code`, `unrar`, COPR `quickshell`/`swayosd` и
-  `swap ffmpeg-free ffmpeg` разрешаются.
-- `mkksiso` запускается rootful с `--privileged`; при локальном запуске скрипт сам
-  вызывает `sudo podman`.
-- `just check` и shellcheck проходят; атомарные `gnome` и `driftwm` собраны локально.
-- `system_files` в классическом `%post` распаковываются с `--no-same-owner`, чтобы
-  файлы в `/` принадлежали root, а не пользователю, собиравшему ISO.
-- README прочитан целиком, противоречий между атомарной и классической сборкой нет.
+- Atomic и Classic, каждый с GNOME и DriftWM; общие списки пакетов, отдельные
+  механизмы установки/обновления.
+- Пакеты разложены по категориям BASE / HARDWARE / POWER / GNOME / DRIFTWM /
+  DEVELOPMENT / MULTIMEDIA / OPTIONAL; дубликаты запрещены тестом.
+- TuneD-профили `my-fedora-p14s-*` и маппинг tuned-ppd; Boost в Power Saver не
+  отключается, Wi-Fi/USB autosuspend не форсируются.
+- Пороги заряда: сервис + `my-fedora-battery` + конфиг, пресеты 75/80, 40/80,
+  95/100, повторное применение после сна, безопасный fallback без sysfs.
+- `thinkpad-diagnostics`, `my-fedora-power-profile`, `Super+Shift+P` в DriftWM.
+- Версии сторонних программ закреплены, SHA256 проверяется.
+- Classic `%post` не падает из-за недоступности RPM Fusion/COPR/GitHub/npm.
+- Atomic ISO: проверка DNS и retry с понятной ошибкой при недоступности GHCR.
+- `just test`, `just validate`, `just check-packages`, `just sbom`; workflow
+  Validate; SBOM и build metadata в CI; еженедельная Classic-сборка и теги.
+- README описывает четыре варианта, питание, диагностику, rollback и ограничения.
+- Локально: Atomic driftwm/gnome собираются, `bootc container lint` проходит
+  (с предупреждениями от пакетов), `just check`, `just test`, `just validate`,
+  `just check-packages` проходят.
 
-## Осталось
+## Осталось (требует push/железа/rootful podman)
 
-1. Запушить изменения и прогнать в GitHub Actions workflow **Build classic ISO**
-   для `gnome` и `driftwm`: локально нет ни `gh`, ни токена, ни rootful-доступа
-   без пароля, поэтому полная сборка ISO не проверена.
-2. Загрузить собранный классический ISO в VM и проверить:
-   - интерактивную разметку диска (dual-boot с Windows);
-   - создание пользователя через `initial-setup`/`gnome-initial-setup`;
-   - установку vendor RPM, opencode, DSH;
-   - работу `quickshell`/`swayosd` в driftwm;
-   - отсутствие запросов разрешений у opencode;
-   - появление расширения opencode в VS Code после первого входа.
-3. Решить судьбу этого TODO: удалить или оставить как заметку.
+1. Запушить и прогнать GitHub Actions: Validate, Atomic images, Classic ISO.
+2. Собрать Atomic ISO (`just build-iso`) и Classic ISO; проверить установку в VM.
+3. На P14s Gen 2 AMD проверить: сон/s2idle, Wi-Fi/BT после сна, отпечаток,
+   пороги заряда на этой прошивке, яркость, подсветку клавиатуры, автономность.
+4. Проверить обновление и откат Atomic (`bootc upgrade` / `bootc rollback`).
+5. Проверить Dual Boot и ручную разметку на реальном диске.
+6. Решить, включать ли сканирование уязвимостей (grype/trivy) в CI.

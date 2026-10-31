@@ -2,16 +2,18 @@
 
 # Fedora major must match the bases below, so driftwm links against the same libs
 ARG FEDORA_VERSION=44
-# Empty = latest release tag; set e.g. v0.21.0 to pin when a new release breaks
-ARG DRIFTWM_VERSION=
+# Pinned driftwm release; bump tag and commit together on purpose
+ARG DRIFTWM_VERSION=v0.21.0
+ARG DRIFTWM_COMMIT=df3de27b26c7998e8a460cffd8a4925cbed3a322
 
 # driftwm is not packaged for Fedora: build it from a release tag
 FROM quay.io/fedora/fedora:${FEDORA_VERSION} AS driftwm-build
 ARG DRIFTWM_VERSION
+ARG DRIFTWM_COMMIT
 RUN dnf5 -y install git make cargo rust pkgconf-pkg-config \
         libseat-devel libdisplay-info-devel libinput-devel mesa-libgbm-devel libxkbcommon-devel systemd-devel && \
-    TAG="${DRIFTWM_VERSION:-$(git ls-remote --tags --refs --sort=-v:refname https://github.com/malbiruk/driftwm.git 'v*' | head -1 | sed 's#.*/##')}" && \
-    git clone --depth 1 --branch "$TAG" https://github.com/malbiruk/driftwm.git /src && \
+    git clone --depth 1 --branch "$DRIFTWM_VERSION" https://github.com/malbiruk/driftwm.git /src && \
+    test "$(git -C /src rev-parse HEAD)" = "$DRIFTWM_COMMIT" && \
     cd /src && make build && make install DESTDIR=/out PREFIX=/usr && \
     cp -r extras /out/usr/share/driftwm/extras
 
@@ -22,6 +24,10 @@ COPY system_files /system_files
 
 ### driftwm: Universal Blue base (Fedora Atomic without a desktop, codecs and full Mesa included)
 FROM ghcr.io/ublue-os/base-main:${FEDORA_VERSION} AS driftwm
+
+# Changes whenever build_files/ or system_files/ change. buildah does not always
+# invalidate the bind-mounted ctx stage on its own, so the Justfile passes a hash.
+ARG BUILD_FILES_SHA=0
 
 COPY --from=driftwm-build /out/ /
 
@@ -38,6 +44,9 @@ RUN bootc container lint
 
 ### gnome: Universal Blue Silverblue (stock GNOME + GDM, codecs and full Mesa included)
 FROM ghcr.io/ublue-os/silverblue-main:${FEDORA_VERSION} AS gnome
+
+# See the driftwm stage: forces cache invalidation when build_files/system_files change
+ARG BUILD_FILES_SHA=0
 
 RUN rm /opt && mkdir /opt
 

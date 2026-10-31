@@ -35,6 +35,7 @@ layout = "us,ru"
 "mod+n" = "spawn swaync-client -t"
 "mod+d" = "exec ~/.config/driftwm/scripts/spotlight.sh"
 "mod+v" = "spawn cliphist list | fuzzel --dmenu | cliphist decode | wl-copy"
+"mod+shift+p" = "exec my-fedora-power-profile menu"  # power profile via tuned-ppd
 "Print" = "spawn grim -g \"$(slurp)\" - | swappy -f -"  # area -> editor (ShareX-like); shift+Print: area to clipboard
 "ctrl+print" = "spawn driftwm msg screenshot window -o - | wl-copy"
 "XF86AudioRaiseVolume" = "spawn swayosd-client --output-volume raise"

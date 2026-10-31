@@ -1,0 +1,106 @@
+#!/bin/bash
+# Switch the tuned-ppd power profile without GNOME.
+#
+# tuned-ppd exposes the same net.hadess.PowerProfiles D-Bus API that GNOME
+# Settings uses. powerprofilesctl is only shipped by power-profiles-daemon, and
+# that package conflicts with tuned-ppd, so fall back to busctl.
+set -euo pipefail
+
+PROFILES=(power-saver balanced performance)
+SERVICE=net.hadess.PowerProfiles
+OBJECT=/net/hadess/PowerProfiles
+INTERFACE=net.hadess.PowerProfiles
+
+die() {
+    printf 'my-fedora-power-profile: %s\n' "$*" >&2
+    exit 1
+}
+
+usage() {
+    cat <<'EOF'
+Usage: my-fedora-power-profile [get|list|set PROFILE|next|menu]
+
+  get              print the active profile
+  list             print the available profiles
+  set PROFILE      power-saver | balanced | performance
+  next             switch to the next profile in the list
+  menu             pick a profile with fuzzel (DriftWM)
+
+The same profiles are available in GNOME Settings -> Power.
+EOF
+}
+
+have_profile_api() {
+    busctl get-property "$SERVICE" "$OBJECT" "$INTERFACE" ActiveProfile >/dev/null 2>&1
+}
+
+get_profile() {
+    if command -v powerprofilesctl >/dev/null 2>&1; then
+        powerprofilesctl get
+    elif have_profile_api; then
+        busctl get-property "$SERVICE" "$OBJECT" "$INTERFACE" ActiveProfile |
+            awk '{print $2}' | tr -d '"'
+    else
+        die "tuned-ppd is not running (net.hadess.PowerProfiles is unavailable)"
+    fi
+}
+
+notify() {
+    command -v notify-send >/dev/null 2>&1 &&
+        notify-send -a "Power profile" "Power profile: $1" || true
+}
+
+set_profile() {
+    local profile=$1
+    case $profile in
+        power-saver | balanced | performance) ;;
+        *) die "unknown profile: $profile (try: my-fedora-power-profile list)" ;;
+    esac
+
+    if command -v powerprofilesctl >/dev/null 2>&1; then
+        powerprofilesctl set "$profile"
+    elif have_profile_api; then
+        busctl set-property "$SERVICE" "$OBJECT" "$INTERFACE" ActiveProfile s "$profile"
+    else
+        die "tuned-ppd is not running (net.hadess.PowerProfiles is unavailable)"
+    fi
+    notify "$profile"
+    printf '%s\n' "$profile"
+}
+
+next_profile() {
+    local current next
+    current=$(get_profile)
+    case $current in
+        power-saver) next=balanced ;;
+        balanced) next=performance ;;
+        performance) next=power-saver ;;
+        *) next=balanced ;;
+    esac
+    set_profile "$next"
+}
+
+menu_profile() {
+    command -v fuzzel >/dev/null 2>&1 || die "fuzzel is not installed"
+    local choice
+    choice=$(printf '%s\n' "Power Saver" "Balanced" "Performance" |
+        fuzzel --dmenu --prompt "Power profile: ") || exit 0
+    case $choice in
+        "Power Saver") set_profile power-saver ;;
+        Balanced) set_profile balanced ;;
+        Performance) set_profile performance ;;
+    esac
+}
+
+case ${1:-get} in
+    get) get_profile ;;
+    list) printf '%s\n' "${PROFILES[@]}" ;;
+    set) set_profile "${2:?usage: my-fedora-power-profile set power-saver|balanced|performance}" ;;
+    next) next_profile ;;
+    menu) menu_profile ;;
+    --help | -h) usage ;;
+    *)
+        usage
+        exit 2
+        ;;
+esac

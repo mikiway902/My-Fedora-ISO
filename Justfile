@@ -124,6 +124,11 @@ build $target_image=image_name $tag=default_tag:
     LABELS+=("--label" "org.opencontainers.image.title={{ image_name }}")
     LABELS+=("--label" "org.opencontainers.image.vendor={{ repo_organization }}")
 
+    # buildah can reuse a bind-mounted ctx stage across changed build_files;
+    # hash the inputs so a changed script always invalidates the build cache
+    FILES_SHA=$(find build_files system_files -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)
+    BUILD_ARGS+=("--build-arg" "BUILD_FILES_SHA=${FILES_SHA}")
+
     # This actually builds the image!
     PODMAN_BUILD_ARGS=("${BUILD_ARGS[@]}" "${LABELS[@]}" --pull=newer --tag "${target_image}:${tag}" --target "{{ variant }}" --file Containerfile)
 
@@ -385,6 +390,88 @@ build-classic-iso $variant=variant:
 [group('Build Virtal Machine Image')]
 rebuild-classic-iso $variant=variant: && (build-classic-iso variant)
 
+# Build one of the four variants without touching the others
+[group('Build Virtal Machine Image')]
+build-atomic-gnome:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    VARIANT=gnome just build
+
+[group('Build Virtal Machine Image')]
+build-atomic-driftwm:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    VARIANT=driftwm just build
+
+[group('Build Virtal Machine Image')]
+build-iso-atomic-gnome:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    VARIANT=gnome just build-iso
+
+[group('Build Virtal Machine Image')]
+build-iso-atomic-driftwm:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    VARIANT=driftwm just build-iso
+
+[group('Build Virtal Machine Image')]
+build-classic-gnome:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    VARIANT=gnome just build-classic-iso
+
+[group('Build Virtal Machine Image')]
+build-classic-driftwm:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    VARIANT=driftwm just build-classic-iso
+
+# Atomic images and classic ISOs for both desktops
+[group('Build Virtal Machine Image')]
+build-all:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    just build-atomic-driftwm
+    just build-atomic-gnome
+    just build-classic-driftwm
+    just build-classic-gnome
+
+# All four bootable ISOs (atomic images must be buildable locally)
+[group('Build Virtal Machine Image')]
+build-all-isos:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    just build-iso-atomic-driftwm
+    just build-iso-atomic-gnome
+    just build-classic-driftwm
+    just build-classic-gnome
+
+# Run the offline unit tests (no root, no podman)
+[group('Just')]
+test:
+    bash build_files/tests/run-tests.sh
+
+# Full source validation: shellcheck, bash -n, actionlint, kickstarts, units, TOML
+[group('Just')]
+validate:
+    bash build_files/validate.sh
+
+# Resolve the Fedora package lists inside a Fedora 44 container
+[group('Just')]
+check-packages:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    podman run --rm -v "$PWD:/repo:Z" -w /repo quay.io/fedora/fedora:44 \
+        bash build_files/check-packages.sh
+
+# Generate an SPDX package inventory for a built image
+[group('Utility')]
+sbom $target_image=("localhost/" + image_name) $tag=default_tag $output="sbom.spdx.json":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    bash build_files/generate-sbom.sh "{{ target_image }}:{{ tag }}" "{{ output }}"
+
 # Run a virtual machine from a classic ISO
 [group('Run Virtal Machine')]
 run-vm-classic-iso $variant=variant: && (build-classic-iso variant)
@@ -488,7 +575,7 @@ spawn-vm rebuild="0" type="qcow2" ram="6G":
       --vsock=false --pass-ssh-key=false \
       -i ./output/**/*.{{ type }}
 
-# Runs shell check on all Bash scripts
+# Runs shell check on all Bash scripts and helper executables
 lint:
     #!/usr/bin/env bash
     set -eoux pipefail
@@ -497,8 +584,10 @@ lint:
         echo "shellcheck could not be found. Please install it."
         exit 1
     fi
-    # Run shellcheck on all Bash scripts
-    find . -iname "*.sh" -type f -exec shellcheck "{}" ';'
+    # Run shellcheck on all Bash scripts, including the helpers without a .sh suffix
+    find . -path ./output -prune -o -type f \
+        \( -iname "*.sh" -o -path "./system_files/usr/bin/*" -o -path "./system_files/usr/libexec/*" \) \
+        -exec shellcheck "{}" ';'
 
 # Runs shfmt on all Bash scripts
 format:
@@ -509,5 +598,7 @@ format:
         echo "shfmt could not be found. Please install it."
         exit 1
     fi
-    # Run shfmt on all Bash scripts
-    find . -iname "*.sh" -type f -exec shfmt --write "{}" ';'
+    # Run shfmt on all Bash scripts, including the helpers without a .sh suffix
+    find . -path ./output -prune -o -type f \
+        \( -iname "*.sh" -o -path "./system_files/usr/bin/*" -o -path "./system_files/usr/libexec/*" \) \
+        -exec shfmt --write "{}" ';'

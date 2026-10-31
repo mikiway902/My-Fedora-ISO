@@ -1,9 +1,13 @@
 .git
 .gitignore
 .github
+TASKS
 output
+artifacts
 _build*
 *_chunkah_*
 *_rpm-ostree_*
 README.md
 TODO.md
+*.spdx.json
+build-info*.txt

@@ -1,0 +1,13 @@
+#!/bin/sh
+# Classic Fedora: /etc/grub.d/40_custom is sourced by grub2-mkconfig, unlike
+# /boot/grub2/custom.cfg which only bootupd (Atomic) reads. The entry appears
+# only if a Windows Boot Manager is actually present.
+exec tail -n +3 "$0"
+
+if search --no-floppy --file --set=winesp /EFI/Microsoft/Boot/bootmgfw.efi; then
+    menuentry "Windows" --class windows {
+        insmod chain
+        search --no-floppy --file --set=winesp /EFI/Microsoft/Boot/bootmgfw.efi
+        chainloader ($winesp)/EFI/Microsoft/Boot/bootmgfw.efi
+    }
+fi

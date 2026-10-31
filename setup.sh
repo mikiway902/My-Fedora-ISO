@@ -20,5 +20,8 @@ sudo dnf swap -y mesa-vulkan-drivers mesa-vulkan-drivers-freeworld
 sudo dnf remove -y tlp auto-cpufreq thermald 2>/dev/null || true
 
 echo "amd_pstate: $(cat /sys/devices/system/cpu/amd_pstate/status 2>/dev/null || echo 'нет (acpi-cpufreq)')"
-powerprofilesctl get
+# tuned-ppd has no powerprofilesctl binary; read the PPD D-Bus property directly
+busctl get-property net.hadess.PowerProfiles /net/hadess/PowerProfiles \
+  net.hadess.PowerProfiles ActiveProfile 2>/dev/null |
+  awk '{print "power profile: " $2}' | tr -d '"' || echo "power profile: недоступен"
 vainfo 2>/dev/null | grep -E 'H264|HEVC' || echo "VA-API: H264/HEVC не найдены"

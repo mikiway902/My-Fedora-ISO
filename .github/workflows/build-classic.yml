@@ -17,9 +17,15 @@ on:
           - both
           - gnome
           - driftwm
+  schedule:
+    # Weekly unattended check that the kickstart still resolves against Fedora
+    - cron: '20 4 * * 6'  # Saturday 04:20 UTC
+  push:
+    tags:
+      - 'v*'
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}-${{ inputs.variant }}
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}-${{ inputs.variant || 'both' }}
   cancel-in-progress: false
 
 jobs:
@@ -115,6 +121,12 @@ jobs:
 
           ( cd "${dir}" && sha256sum "my-fedora-classic-${VARIANT}.iso" > SHA256SUMS.txt )
           ( cd "${dir}" && sha256sum -c SHA256SUMS.txt )
+
+          # Repro metadata and the exact kickstart/package lists used
+          bash build_files/build-info.sh "classic-${VARIANT}" "${iso}" > "${dir}/build-info.txt"
+          cp "output/classic/${VARIANT}/${VARIANT}.ks" "${dir}/"
+          cp "output/classic/${VARIANT}/packages.sh" "${dir}/"
+
           ls -lh "${dir}"
 
       - name: Upload ISO and checksum to job artifacts

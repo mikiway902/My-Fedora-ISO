@@ -1,0 +1,12 @@
+[Unit]
+Description=Apply ThinkPad battery charge thresholds
+ConditionPathExists=/etc/my-fedora/battery.conf
+# Wanted by suspend/hibernate targets so the thresholds are reapplied on resume
+After=suspend.target hibernate.target hybrid-sleep.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/my-fedora-battery apply
+
+[Install]
+WantedBy=multi-user.target suspend.target hibernate.target hybrid-sleep.target
