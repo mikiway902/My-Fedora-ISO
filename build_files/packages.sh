@@ -26,6 +26,10 @@ HARDWARE_PACKAGES=(
     fwupd                              # BIOS/EC/fingerprint firmware via LVFS
     upower                             # battery information and charge threshold API
     fprintd fprintd-pam                # fingerprint: login, sudo, polkit
+    pciutils usbutils                  # lspci/lsusb for thinkpad-diagnostics
+    lm_sensors                         # hwmon/sensors temperatures
+    iw rfkill                          # Wi-Fi power save and radio state
+    nvme-cli smartmontools             # NVMe list and SMART (SMART read needs root)
 )
 
 ### POWER: one power daemon only, driven through the PPD D-Bus interface

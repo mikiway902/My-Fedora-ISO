@@ -69,6 +69,11 @@ power_section() {
     done
 
     local led backlight
+    if [[ -d /sys/module/thinkpad_acpi ]]; then
+        kv "thinkpad_acpi" "загружен"
+    else
+        kv "thinkpad_acpi" "не загружен"
+    fi
     for led in /sys/class/leds/*kbd*; do
         [[ -d $led ]] || continue
         kv "Подсветка клавиатуры" "$(read_value "$led/brightness")"
