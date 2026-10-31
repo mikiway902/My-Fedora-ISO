@@ -25,7 +25,7 @@ FROM ghcr.io/ublue-os/base-main:${FEDORA_VERSION} AS driftwm
 
 COPY --from=driftwm-build /out/ /
 
-# Vendor RPMs (Happ, RuDesktop...) install into /opt; on bootc it is /var/opt and gets lost on deploy
+# Vendor RPMs (Happ, PdfCraft) install into /opt; on bootc it is /var/opt and gets lost on deploy
 RUN rm /opt && mkdir /opt
 
 RUN --mount=type=bind,from=ctx,source=/,target=/ctx \

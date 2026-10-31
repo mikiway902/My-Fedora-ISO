@@ -1,6 +1,13 @@
 # My-Fedora-ISO
 
-Два своих образа Fedora Atomic для ThinkPad P14s Gen 2 AMD (Ryzen 7 PRO 5850U, Radeon Vega 8) с одинаковым набором программ. Работают рядом с Windows. Основа: шаблон [ublue-os/image-template](https://github.com/ublue-os/image-template). Проверено по источникам 2026-10-29.
+Два варианта системы для ThinkPad P14s Gen 2 AMD (Ryzen 7 PRO 5850U, Radeon Vega 8) с одинаковым набором программ, каждый в двух исполнениях:
+
+- **атомарный** (bootc, обновляется готовым образом, откат через GRUB);
+- **классический** (обычная Fedora: Anaconda ставит пакеты из репозиториев, дальше `dnf upgrade`).
+
+Оба работают рядом с Windows. Атомарные собраны по шаблону [ublue-os/image-template](https://github.com/ublue-os/image-template), классические — netinstall ISO на базе Fedora Everything. Проверено по источникам 2026-10-29.
+
+### Атомарные образы (bootc)
 
 | Образ | Оболочка | Основа |
 |---|---|---|
@@ -9,16 +16,29 @@
 
 В обеих основах уже есть кодеки и полная Mesa из negativo17. Freeworld Mesa из RPM Fusion **не** ставится: она конфликтует с negativo17, а H.264/HEVC и так работают.
 
+### Классические ISO (Anaconda + dnf)
+
+| Артефакт | Оболочка | Что внутри |
+|---|---|---|
+| `classic-driftwm-iso` | driftwm, greetd + tuigreet | Fedora 44 + те же пакеты, что в атомарном driftwm |
+| `classic-gnome-iso` | GNOME, GDM | Fedora Workstation 44 + те же пакеты |
+
+В классических ISO кодеки и полная Mesa ставятся из RPM Fusion в `%post`: полный `ffmpeg` вместо `ffmpeg-free`, `mesa-va-drivers-freeworld` и `mesa-vulkan-drivers-freeworld`.
+
 ## Как устроено
 
 | Файл | Что в нём |
 |---|---|
-| [Containerfile](Containerfile) | Этапы `driftwm` и `gnome`, нужный выбирается через `--target`. driftwm собирается из последнего релиза, закрепить версию можно через `DRIFTWM_VERSION` |
-| [build_files/build.sh](build_files/build.sh) | Списки пакетов: `SESSION` (только driftwm), `LAPTOP` (железо), `APPS` (программы из репозиториев), `VENDOR_RPMS` (RPM разработчиков). Всё, кроме `SESSION`, общее |
+| [Containerfile](Containerfile) | Атомарные образы: этапы `driftwm` и `gnome`, нужный выбирается через `--target`. driftwm собирается из последнего релиза, закрепить версию можно через `DRIFTWM_VERSION` |
+| [build_files/packages.sh](build_files/packages.sh) | Единые списки пакетов для атомарной и классической сборки: сессии, железо, программы, COPR и vendor RPM |
+| [build_files/build.sh](build_files/build.sh) | Атомарная сборка: копирует `system_files`, ставит пакеты, opencode CLI и DeepSeek Harness |
+| [build_files/generate-kickstarts.sh](build_files/generate-kickstarts.sh) | Генерирует `driftwm.ks` и `gnome.ks` для классического установщика из тех же списков пакетов |
+| [build_files/classic-post.sh](build_files/classic-post.sh) | `%post` классической установки: RPM Fusion, COPR, vendor RPM, opencode CLI, DSH, `system_files` и сервисы |
+| [build_files/build-classic-iso.sh](build_files/build-classic-iso.sh) | Скачивает Fedora Everything netinst и добавляет kickstart и payload через `mkksiso` |
 | [system_files/usr/share/my-fedora/](system_files/usr/share/my-fedora) | Списки `flatpaks`, `vscode-extensions`, пункт Windows для GRUB |
-| [system_files/](system_files) | Копируется в `/`: greetd, профиль kanshi, лимит заряда, уведомление о прошивках (всё это только для driftwm, в образе GNOME удаляется или не включается), репозиторий VS Code, сервисы установки |
-| [disk_config/iso-driftwm.toml](disk_config/iso-driftwm.toml), [iso-gnome.toml](disk_config/iso-gnome.toml) | Установщик Anaconda для каждого образа. Модуль Users включён: в driftwm нет мастера первого запуска, поэтому пользователя создаёт установщик |
-| [Justfile](Justfile) | Переменная `VARIANT` (`driftwm` по умолчанию или `gnome`) задаёт этап, имя образа и ISO |
+| [system_files/](system_files) | Копируется в `/`: greetd, профиль kanshi, лимит заряда, уведомление о прошивках (всё это только для driftwm, в образе GNOME удаляется или не включается), репозиторий VS Code, сервисы установки, конфиг opencode |
+| [disk_config/iso-driftwm.toml](disk_config/iso-driftwm.toml), [iso-gnome.toml](disk_config/iso-gnome.toml) | Установщик Anaconda для атомарных образов. Модуль Users включён: в driftwm нет мастера первого запуска, поэтому пользователя создаёт установщик |
+| [Justfile](Justfile) | Переменная `VARIANT` (`driftwm` по умолчанию или `gnome`) задаёт этап, имя образа и ISO. Классика: `build-classic-iso`, `run-vm-classic-iso` |
 
 ## Программы
 
@@ -26,10 +46,11 @@
 |---|---|---|
 | Firefox, Git, qBittorrent, mpv, Nautilus, File Roller + 7zip + unrar, grim/slurp/swappy (скриншоты) | Fedora | С образом |
 | VS Code | Репозиторий Microsoft | С образом |
-| Расширение Claude Code для VS Code | Marketplace, при первом входе пользователя | Само, через VS Code |
+| Расширения VS Code: Claude Code и opencode (`sst-dev.opencode`) | Marketplace, при первом входе пользователя | Сами, через VS Code |
 | `docker` / `docker compose` (поверх rootless Podman) | Fedora: `podman-docker`, `podman-compose` | С образом |
-| PdfCraft, Happ, opencode desktop | Последний релиз на GitHub на момент сборки | С образом |
-| RuDesktop | Последняя версия с rudesktop.ru (сборка для РЕД ОС) | С образом |
+| PdfCraft, Happ | Последний релиз на GitHub на момент сборки | С образом |
+| opencode CLI (`opencode`) | Последний релиз на GitHub на момент сборки | С образом |
+| DeepSeek Harness (`dsh`, web UI) | npm, последняя версия на момент сборки | С образом |
 | Discord, Telegram, Moonlight, OnlyOffice, Podman Desktop, Bazaar (магазин Flatpak), Flatseal (права Flatpak) | Flathub, при первой загрузке | Сами, таймер Flatpak |
 | Extension Manager (только GNOME) | Flathub, при первой загрузке | Сам, таймер Flatpak |
 | Расширения GNOME: AppIndicator (значки в трее), Dash to Dock, Caffeine (не засыпать); GNOME Tweaks | Fedora, включены сразу | С образом |
@@ -37,7 +58,9 @@
 
 Программу из списков `flatpaks` или `vscode-extensions` можно добавить в любой момент: после обновления системы она установится сама. Если пользователь удалил программу, обратно она не ставится.
 
-Образы пересобираются каждый день в 06:05 по Москве, при каждом push и вручную (Actions → Run workflow). GitHub отключает расписание, если в репо 60 дней не было коммитов. Тогда его нужно включить заново на вкладке Actions.
+opencode ставится как терминальная программа (не desktop) и уже настроен без запросов разрешений: новый пользователь получает `~/.config/opencode/opencode.json` из `system_files/etc/skel`. DeepSeek Harness запускается командой `dsh`.
+
+Атомарные образы пересобираются каждый день в 06:05 по Москве, при каждом push и вручную (Actions → Run workflow). GitHub отключает расписание, если в репо 60 дней не было коммитов. Тогда его нужно включить заново на вкладке Actions. Классические ISO собираются вручную через workflow **Build classic ISO**.
 
 ## Сборка
 
@@ -52,41 +75,50 @@
    gh secret set SIGNING_SECRET < cosign.key
    ```
    Закоммитьте `cosign.pub`. `cosign.key` не коммитьте никогда, он уже в `.gitignore`.
-3. Push в `main` запускает `build.yml`, и он собирает оба образа параллельно. Сделайте оба пакета публичными в настройках GHCR.
-4. ISO: Actions → **Build disk images** → Run workflow → выберите `gnome`, `driftwm` или `both`. В Artifacts появятся `gnome-anaconda-iso` или `driftwm-anaconda-iso`. Подробности — [Download prebuilt ISO](#download-prebuilt-iso). Для сборки ISO секреты не нужны.
+3. Push в `main` запускает `build.yml`, и он собирает оба атомарных образа параллельно. Сделайте оба пакета публичными в настройках GHCR.
+4. ISO: Actions → **Build disk images** (атомарные) или **Build classic ISO** (классические) → Run workflow → выберите `gnome`, `driftwm` или `both`. Подробности — [Download prebuilt ISO](#download-prebuilt-iso). Для сборки ISO секреты не нужны; для классических не нужен и ключ cosign из шага 2.
 
 ### Локально (Linux с podman и just)
 
 ```bash
+# атомарные образы и их ISO
 VARIANT=gnome just build && VARIANT=gnome just build-iso
+
+# классический netinstall ISO (нужен rootful podman для mkksiso)
+VARIANT=gnome just build-classic-iso
 ```
 
-Без `VARIANT` собирается driftwm. ISO будет в `output/bootiso/install.iso`. Проверить в VM можно так: `just run-vm-iso`.
+Без `VARIANT` собирается driftwm. Атомарный ISO будет в `output/bootiso/install.iso`, классический — в `output/bootiso/my-fedora-classic-<variant>.iso`. Проверить в VM: `just run-vm-iso` или `just run-vm-classic-iso`.
 
 ### Обновления после установки
 
-Система тянет новые сборки из GHCR сама (`bootc upgrade`). Поменяли `build.sh`, сделали push, перезагрузились, и изменения на месте. Откат: `sudo bootc rollback`.
+- **Атомарные образы:** система тянет новые сборки из GHCR сама (`bootc upgrade`). Поменяли `build.sh`, сделали push, перезагрузились, и изменения на месте. Откат: `sudo bootc rollback`.
+- **Классические:** обычное `sudo dnf upgrade --refresh`. Образ с GHCR не связан, отката к прошлому образу нет.
 
 ## Download prebuilt ISO
 
 Готовый загрузочный ISO можно скачать с GitHub, ничего не собирая на своём компьютере. Нужен только браузер.
 
 1. Откройте репозиторий на GitHub и вкладку **Actions**.
-2. В списке слева выберите **Build disk images**.
+2. В списке слева выберите workflow:
+   - **Build disk images** — атомарные образы;
+   - **Build classic ISO** — классические netinstall ISO.
 3. Справа нажмите **Run workflow**.
 4. В поле **variant** выберите `gnome`, `driftwm` или `both` и нажмите зелёную **Run workflow**.
 5. Дождитесь зелёной галочки у запуска (обычно 30–60 минут). Варианты собираются независимо: если один упал, ISO второго всё равно загрузится.
 6. Внизу страницы запуска, в разделе **Artifacts**, скачайте нужный архив:
 
-   | Артефакт | Файл внутри |
-   |---|---|
-   | `gnome-anaconda-iso` | `my-fedora-iso-gnome.iso` |
-   | `driftwm-anaconda-iso` | `my-fedora-iso-driftwm.iso` |
+   | Workflow | Артефакт | Файл внутри |
+   |---|---|---|
+   | Build disk images | `gnome-anaconda-iso` | `my-fedora-iso-gnome.iso` |
+   | Build disk images | `driftwm-anaconda-iso` | `my-fedora-iso-driftwm.iso` |
+   | Build classic ISO | `classic-gnome-iso` | `my-fedora-classic-gnome.iso` |
+   | Build classic ISO | `classic-driftwm-iso` | `my-fedora-classic-driftwm.iso` |
 
    Рядом с ISO в архиве лежит `SHA256SUMS.txt`.
 7. Артефакты хранятся **14 дней**, потом GitHub их удаляет. Скачайте ISO сразу; иначе запустите workflow заново.
 
-Это установщик Anaconda: загрузитесь с флешки и установите систему как обычную Fedora. После установки она сама обновляется из GHCR.
+Оба варианта — установщик Anaconda: загрузитесь с флешки и установите систему. Атомарный ISO после установки обновляется из GHCR через `bootc upgrade`; классический — обычными `dnf upgrade` из репозиториев Fedora.
 
 ### Запись на флешку
 
@@ -116,6 +148,8 @@ sha256sum -c SHA256SUMS.txt
 На macOS вместо `sha256sum` используйте `shasum -a 256 -c SHA256SUMS.txt`. Если хеши не совпали, файл скачался с ошибкой — скачайте артефакт заново.
 
 ## Переключение driftwm ⇄ GNOME
+
+Этот раздел — только для **атомарных** образов: там оболочка меняется готовым образом. В классической системе переключение означает переустановку (или ручную установку нужных пакетов и смену display manager).
 
 ISO нужен только для первой установки. Дальше можно переключаться в любую сторону:
 
@@ -147,11 +181,11 @@ sudo bootc switch ghcr.io/mikiway902/my-fedora-iso-driftwm:latest
 **Установка Fedora**
 1. Secure Boot оставьте **включённым**, он нужен Windows 11. Загрузитесь с флешки: F12 на логотипе Lenovo → USB.
 2. В Anaconda: Место установки → диск → «Освободить место» или ручная разметка. Ставьте только в свободное место. Существующий EFI-раздел (~100–260 МБ, FAT32) **не форматируйте**, Fedora добавит туда свой загрузчик рядом с Windows. Включите шифрование (LUKS).
-3. После установки зарегистрируйте ключ Universal Blue, иначе модули ядра из образа не загрузятся при Secure Boot:
+3. **Только для атомарных образов:** зарегистрируйте ключ Universal Blue, иначе модули ядра из образа не загрузятся при Secure Boot:
    ```bash
    ujust enroll-secure-boot-key
    ```
-   При перезагрузке появится синий экран MokManager: Enroll MOK → Continue → пароль `universalblue`.
+   При перезагрузке появится синий экран MokManager: Enroll MOK → Continue → пароль `universalblue`. В классической Fedora этот шаг не нужен: ядро и модули подписаны ключом Fedora.
 
 ### Вариант Б: сначала Fedora, потом Windows
 
@@ -162,7 +196,7 @@ sudo bootc switch ghcr.io/mikiway902/my-fedora-iso-driftwm:latest
    - `/boot`: 2 ГБ, ext4;
    - остальное под btrfs с шифрованием (LUKS).
 
-   После установки зарегистрируйте ключ, как в варианте А: `ujust enroll-secure-boot-key`.
+   После установки зарегистрируйте ключ, как в варианте А: `ujust enroll-secure-boot-key` (только для атомарного образа; в классической Fedora не нужно).
 2. **Windows.** Флешка через F12 → «Выборочная установка» → выберите **неразмеченное пространство** → «Далее». Сами разделы не создавайте и ничего не удаляйте: служебные разделы Windows создаст сама.
 3. **В Windows** сделайте то же, что в варианте А: сохраните ключ BitLocker (Windows 11 на ноутбуках часто включает шифрование сама), отключите быстрый запуск, переведите часы на UTC.
 4. **Верните Fedora первой в загрузке.** Два способа:
@@ -177,6 +211,7 @@ sudo bootc switch ghcr.io/mikiway902/my-fedora-iso-driftwm:latest
 
 ## После первой загрузки
 
+- **Пользователь (классические ISO).** В kickstart root заблокирован, поэтому при первой загрузке запускается `initial-setup` (в GNOME — `gnome-initial-setup`) и просит создать пользователя. Это сделано специально: установщик не навязывает логин и пароль. Отметьте «Make this user administrator» (добавление в `wheel`), иначе не будет `sudo`.
 - **Отпечаток.** Вход, sudo и запросы прав по отпечатку уже включены в обоих образах. Осталось записать палец: `fprintd-enroll`, а в GNOME через Настройки → Пользователи. Пока отпечаток не записан, работает обычный пароль.
 - **Лимит заряда 80 %.** В driftwm он включён сразу: зарядка до 80 %, дозарядка ниже 75 % ([thinkpad-battery.conf](system_files/usr/lib/tmpfiles.d/thinkpad-battery.conf)). Чтобы один раз зарядить до 100 %, выполните `echo 100 | sudo tee /sys/class/power_supply/BAT0/charge_control_end_threshold`, после перезагрузки снова будет 80. В GNOME: Настройки → Питание → «Preserve Battery Health».
 - **Сон на зарядке.** В обоих образах ноутбук на зарядке не засыпает от простоя, а от батареи засыпает. В GNOME это значение по умолчанию: его можно поменять в Настройки → Питание, и ваш выбор сохранится. Закрытие крышки: в driftwm на зарядке ноутбук не засыпает, от батареи засыпает. С внешним монитором крышка не усыпляет никогда. В GNOME крышка, как и раньше, усыпляет всегда, кроме случая с внешним монитором.

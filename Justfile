@@ -10,6 +10,7 @@ export image_keywords := env_var("IMAGE_KEYWORDS")
 export image_logo_url := env_var("IMAGE_LOGO_URL")
 export default_tag := env_var("DEFAULT_TAG")
 export bib_image := env_var("BIB_IMAGE")
+export fedora_version := env_var_or_default("FEDORA_VERSION", "44")
 
 alias build-vm := build-qcow2
 alias rebuild-vm := rebuild-qcow2
@@ -370,6 +371,50 @@ rebuild-raw $target_image=("localhost/" + image_name) $tag=default_tag: && (_reb
 # Rebuild an ISO virtual machine image
 [group('Build Virtal Machine Image')]
 rebuild-iso $target_image=("localhost/" + image_name) $tag=default_tag: && (_rebuild-bib target_image tag "iso" ("disk_config/iso-" + variant + ".toml"))
+
+# Build a classic (Anaconda/dnf) netinstall ISO with the same package set
+# Package sources: Fedora Everything + RPM Fusion + COPR; no bootc/ostree.
+[group('Build Virtal Machine Image')]
+build-classic-iso $variant=variant:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    VARIANT="{{ variant }}" FEDORA_VERSION="{{ fedora_version }}" \
+        bash build_files/build-classic-iso.sh
+
+# The classic ISO is built from the distro repos, so there is no image to rebuild
+[group('Build Virtal Machine Image')]
+rebuild-classic-iso $variant=variant: && (build-classic-iso variant)
+
+# Run a virtual machine from a classic ISO
+[group('Run Virtal Machine')]
+run-vm-classic-iso $variant=variant: && (build-classic-iso variant)
+    #!/usr/bin/env bash
+    set -eoux pipefail
+
+    image_file="output/bootiso/my-fedora-classic-{{ variant }}.iso"
+
+    port=8006
+    while grep -q :${port} <<< $(ss -tunalp); do
+        port=$(( port + 1 ))
+    done
+    echo "Using Port: ${port}"
+    echo "Connect to http://localhost:${port}"
+
+    run_args=()
+    run_args+=(--rm --privileged)
+    run_args+=(--pull=newer)
+    run_args+=(--publish "127.0.0.1:${port}:8006")
+    run_args+=(--env "CPU_CORES=4")
+    run_args+=(--env "RAM_SIZE=8G")
+    run_args+=(--env "DISK_SIZE=64G")
+    run_args+=(--env "TPM=Y")
+    run_args+=(--env "GPU=Y")
+    run_args+=(--device=/dev/kvm)
+    run_args+=(--volume "${PWD}/${image_file}":"/boot.iso")
+    run_args+=(docker.io/qemux/qemu)
+
+    (sleep 30 && xdg-open http://localhost:"$port") &
+    podman run "${run_args[@]}"
 
 # Run a virtual machine with the specified image type and configuration
 _run-vm $target_image $tag $type $config:

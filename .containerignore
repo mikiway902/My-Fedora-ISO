@@ -1,0 +1,9 @@
+.git
+.gitignore
+.github
+output
+_build*
+*_chunkah_*
+*_rpm-ostree_*
+README.md
+TODO.md

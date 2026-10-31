@@ -1,0 +1,128 @@
+---
+name: Build classic ISO
+
+# Classic Fedora (Anaconda/dnf) netinstall ISOs, built alongside the atomic ones.
+# The source media is Fedora Everything; packages come from Fedora, RPM Fusion
+# and COPR during installation.
+
+on:
+  workflow_dispatch:
+    inputs:
+      variant:
+        description: "Which classic ISO to build"
+        required: true
+        default: both
+        type: choice
+        options:
+          - both
+          - gnome
+          - driftwm
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}-${{ inputs.variant }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build ${{ matrix.variant }} classic ISO
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: ${{ fromJSON(inputs.variant == 'gnome' && '["gnome"]' || inputs.variant == 'driftwm' && '["driftwm"]' || '["gnome","driftwm"]') }}
+    permissions:
+      contents: read
+    env:
+      VARIANT: ${{ matrix.variant }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Maximize build space
+        uses: ublue-os/remove-unwanted-software@695eb75bc387dbcd9685a8e72d23439d8686cba6
+
+      - name: Install just
+        uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
+
+      - name: Install podman and ISO tools
+        run: |
+          set -euxo pipefail
+          sudo apt-get update
+          sudo apt-get install -y podman xorriso file
+
+      - name: Configure rootful Podman storage
+        run: |
+          sudo rm -rf /var/lib/containers/storage
+          sudo mkdir -p /var/lib/containers/storage /etc/containers
+          printf '[storage]\ndriver = "overlay"\nrunroot = "/run/containers/storage"\ngraphroot = "/var/lib/containers/storage"\n' \
+            | sudo tee /etc/containers/storage.conf > /dev/null
+
+      - name: Check Justfile syntax
+        run: just check
+
+      - name: Build classic ISO
+        # Rootful on purpose: the driftwm build stage and mkksiso run in podman
+        run: sudo env "PATH=${PATH}" "VARIANT=${VARIANT}" just build-classic-iso
+
+      - name: Fix output ownership
+        run: sudo chown -R "$(id -u):$(id -g)" output
+
+      - name: Verify ISO, rename and checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          src="output/bootiso/my-fedora-classic-${VARIANT}.iso"
+          dir="artifacts/classic-${VARIANT}"
+          iso="${dir}/my-fedora-classic-${VARIANT}.iso"
+          mkdir -p "${dir}"
+
+          test -f "${src}" || { echo "::error::${src} was not produced"; exit 1; }
+          test -s "${src}" || { echo "::error::${src} is empty"; exit 1; }
+
+          mv "${src}" "${iso}"
+
+          bytes=$(stat -c %s "${iso}")
+          echo "ISO size: ${bytes} bytes"
+          if (( bytes < 1073741824 )); then
+            echo "::error::${iso} is too small to be a bootable Fedora ISO"
+            exit 1
+          fi
+
+          dd if="${iso}" of=/dev/null bs=1M count=64 status=none
+          test "$(dd if="${iso}" bs=1 skip=32769 count=5 status=none)" = "CD001"
+          file "${iso}" | grep -q 'ISO 9660'
+
+          boot=$(xorriso -indev "${iso}" -report_el_torito plain 2>&1) || {
+            echo "${boot}"
+            echo "::error::xorriso could not read ${iso}"
+            exit 1
+          }
+          grep -q 'El Torito boot img' <<<"${boot}" || {
+            echo "::error::${iso} has no El Torito boot catalog"
+            exit 1
+          }
+          xorriso -indev "${iso}" -ls /images/pxeboot 2>/dev/null | grep -q vmlinuz || {
+            echo "::error::${iso} has no /images/pxeboot/vmlinuz (not an Anaconda installer)"
+            exit 1
+          }
+          xorriso -indev "${iso}" -ls / 2>/dev/null | grep -q classic-post.sh || {
+            echo "::error::${iso} does not contain the classic install payload"
+            exit 1
+          }
+
+          ( cd "${dir}" && sha256sum "my-fedora-classic-${VARIANT}.iso" > SHA256SUMS.txt )
+          ( cd "${dir}" && sha256sum -c SHA256SUMS.txt )
+          ls -lh "${dir}"
+
+      - name: Upload ISO and checksum to job artifacts
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: classic-${{ matrix.variant }}-iso
+          path: artifacts/classic-${{ matrix.variant }}
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+          overwrite: true

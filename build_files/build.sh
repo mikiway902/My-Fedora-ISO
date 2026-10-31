@@ -2,79 +2,43 @@
 
 set -ouex pipefail
 
+# Package lists live in packages.sh so the classic kickstart installer can use them too
+# shellcheck disable=SC1091
+source /ctx/packages.sh
+
 # Copy the contents of system_files/ of the git repo to /
 cp -avf "/ctx/system_files"/. /
 
-### driftwm session: runtime libs, login screen, portals, shell around it (gnome image has all this from Silverblue)
+### Per-variant package sets (GNOME's session and desktop come from Silverblue)
 SESSION=()
-[[ $VARIANT == driftwm ]] && SESSION=(
-    libseat libdisplay-info libinput mesa-libgbm libxkbcommon
-    greetd tuigreet
-    xwayland-satellite
-    xdg-desktop-portal-gtk xdg-desktop-portal-wlr gnome-keyring
-    foot fuzzel SwayNotificationCenter swaybg swayidle swaylock wlopm
-    brightnessctl wireplumber pipewire-pulseaudio pavucontrol
-    NetworkManager-wifi NetworkManager-tui bluez blueman
-    polkit lxqt-policykit
-    google-noto-sans-fonts google-noto-emoji-fonts
-    quickshell swayosd                 # dashboard and volume/brightness OSD, from COPRs below
-    jq wl-clipboard libnotify          # used by the driftwm extras scripts
-    playerctl cliphist wlsunset kanshi
-    cups system-config-printer         # printing, Silverblue already has it
-)
-DRIFTWM_COPRS=(errornointernet/quickshell erikreider/swayosd)
-
-### ThinkPad P14s Gen 2 AMD
-LAPTOP=(
-    tuned-ppd          # power profiles; never add TLP/auto-cpufreq next to it
-    fwupd              # BIOS/EC/fingerprint firmware via LVFS
-    fprintd fprintd-pam
-    upower             # battery charge threshold (thinkpad_acpi)
-)
-
-### Preinstalled apps from repos. GUI apps that update often go to system_files/usr/share/my-fedora/flatpaks
-APPS=(
-    firefox
-    nautilus file-roller 7zip unrar
-    mpv imv
-    qbittorrent
-    grim slurp swappy                  # screenshots (ShareX replacement)
-    code                               # VS Code, repo in /etc/yum.repos.d/vscode.repo
-    git
-    podman-docker podman-compose       # `docker` / `docker compose` on top of rootless podman
-    btrfs-assistant snapper
-    liberation-fonts-all google-carlito-fonts google-crosextra-caladea-fonts  # metric-compatible MS Office fonts
-    jetbrains-mono-fonts-all           # monospace for VS Code and terminals
-    hunspell-ru                        # Russian spell check (hunspell users: Firefox, GTK apps)
-)
-
-### GNOME only: tray icons, dock, keep-awake toggle, Tweaks
-[[ $VARIANT == gnome ]] && SESSION=(
-    gnome-shell-extension-appindicator gnome-shell-extension-dash-to-dock gnome-shell-extension-caffeine
-    gnome-tweaks
-)
-
-### Apps from vendor RPMs, always the latest release at build time
-latest_tag() { curl -fsSLI -o /dev/null -w '%{url_effective}' "https://github.com/$1/releases/latest" | sed 's#.*/tag/##'; }
-PDFCRAFT=$(latest_tag storytold/pdfcraft)
-RUDESKTOP=$(curl -fsSL https://rudesktop.ru/downloads/ | grep -oE 'rudesktop-[0-9.]+-x86_64\.rpm' | head -1)
-VENDOR_RPMS=(
-    "https://github.com/storytold/pdfcraft/releases/download/${PDFCRAFT}/pdfcraft-${PDFCRAFT#v}-linux-x86_64.rpm"
-    "https://github.com/Happ-proxy/happ-desktop/releases/latest/download/Happ.linux.x64.rpm"
-    "https://github.com/anomalyco/opencode/releases/latest/download/opencode-desktop-linux-x86_64.rpm"
-    "https://storage.rudesktop.ru/download/${RUDESKTOP}"  # built for RED OS, not Fedora
-)
+[[ $VARIANT == driftwm ]] && SESSION=("${DRIFTWM_SESSION[@]}")
+[[ $VARIANT == gnome ]] && SESSION=("${GNOME_SESSION[@]}")
 
 if [[ $VARIANT == driftwm ]]; then
     for copr in "${DRIFTWM_COPRS[@]}"; do dnf5 -y copr enable "$copr"; done
 fi
 
-dnf5 -y install "${SESSION[@]}" "${LAPTOP[@]}" "${APPS[@]}" "${VENDOR_RPMS[@]}"
+VENDOR_RPMS=()
+while IFS= read -r url; do VENDOR_RPMS+=("$url"); done < <(vendor_rpm_urls)
+
+dnf5 -y install "${SESSION[@]}" "${LAPTOP[@]}" "${APPS[@]}" "${THIRD_PARTY_PACKAGES[@]}" "${VENDOR_RPMS[@]}"
 
 if [[ $VARIANT == driftwm ]]; then
+    dnf5 -y install "${DRIFTWM_COPR_PACKAGES[@]}"
+
     # Disable COPRs so they don't end up enabled on the final image
     for copr in "${DRIFTWM_COPRS[@]}"; do dnf5 -y copr disable "$copr"; done
 fi
+
+# opencode CLI (terminal), not the desktop app.
+# /usr, not /usr/local: on bootc /usr/local is a symlink to /var and is not part of the image.
+curl -fsSL "${OPENCODE_URL}" | tar -xz -C /usr/bin opencode
+chown root:root /usr/bin/opencode
+chmod 755 /usr/bin/opencode
+
+# DeepSeek Harness web UI, started with `dsh`
+npm install -g --prefix /usr --cache /tmp/npm-cache "${DEEPSEEK_HARNESS_PACKAGE}"
+rm -rf /tmp/npm-cache
 
 chmod +x /usr/libexec/my-fedora-*  # git on Windows drops the exec bit
 
