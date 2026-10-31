@@ -60,7 +60,9 @@ batteries() {
 }
 
 read_value() {
-    [[ -r $1 ]] && tr -d '\n' <"$1" 2>/dev/null || true
+    if [[ -r $1 ]]; then
+        tr -d '\n' <"$1" 2>/dev/null || true
+    fi
 }
 
 write_value() {

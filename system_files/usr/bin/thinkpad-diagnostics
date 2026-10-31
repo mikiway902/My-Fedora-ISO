@@ -31,7 +31,9 @@ section() { printf '\n== %s ==\n' "$1"; }
 kv() { printf '%-24s %s\n' "$1:" "$2"; }
 
 read_value() {
-    [[ -r $1 ]] && tr -d '\n' <"$1" 2>/dev/null || true
+    if [[ -r $1 ]]; then
+        tr -d '\n' <"$1" 2>/dev/null || true
+    fi
 }
 
 have() { command -v "$1" >/dev/null 2>&1; }
