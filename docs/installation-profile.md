@@ -99,6 +99,8 @@ sha256sum output/bootiso/my-fedora-classic-gnome*.iso
 
 Альтернатива: GitHub Actions → **Build classic ISO**, `variant=gnome`,
 `hardware_profile=generic` или `desktop-nvidia`.
+При push в `main` обе GNOME ISO собираются автоматически; ручной запуск и
+еженедельная проверка остальных вариантов сохранены.
 Изменения сначала должны попасть в GitHub; локальная подготовка не означает
 публикацию образов. Автоматические commit/push не выполняются.
 

@@ -29,6 +29,8 @@ on:
     # Weekly unattended check that the kickstart still resolves against Fedora
     - cron: '20 4 * * 6'  # Saturday 04:20 UTC
   push:
+    branches:
+      - main
     tags:
       - 'v*'
 
@@ -38,18 +40,19 @@ concurrency:
 
 jobs:
   build:
-    name: Build ${{ matrix.variant }} ${{ inputs.hardware_profile || 'generic' }} classic ISO
+    name: Build ${{ matrix.variant }} ${{ matrix.hardware_profile }} classic ISO
     runs-on: ubuntu-24.04
     timeout-minutes: 240
     strategy:
       fail-fast: false
       matrix:
-        variant: ${{ fromJSON(inputs.hardware_profile == 'desktop-nvidia' && '["gnome"]' || inputs.variant == 'gnome' && '["gnome"]' || inputs.variant == 'driftwm' && '["driftwm"]' || '["gnome","driftwm"]') }}
+        variant: ${{ fromJSON(github.ref == 'refs/heads/main' && github.event_name == 'push' && '["gnome"]' || inputs.hardware_profile == 'desktop-nvidia' && '["gnome"]' || inputs.variant == 'gnome' && '["gnome"]' || inputs.variant == 'driftwm' && '["driftwm"]' || '["gnome","driftwm"]') }}
+        hardware_profile: ${{ fromJSON(github.ref == 'refs/heads/main' && github.event_name == 'push' && '["generic","desktop-nvidia"]' || inputs.hardware_profile == 'desktop-nvidia' && '["desktop-nvidia"]' || '["generic"]') }}
     permissions:
       contents: read
     env:
       VARIANT: ${{ matrix.variant }}
-      HARDWARE_PROFILE: ${{ inputs.hardware_profile || 'generic' }}
+      HARDWARE_PROFILE: ${{ matrix.hardware_profile }}
 
     steps:
       - name: Checkout
