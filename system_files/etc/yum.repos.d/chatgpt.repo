@@ -1,0 +1,6 @@
+[openai-chatgpt]
+name=ChatGPT
+baseurl=https://persistent.oaistatic.com/codex-app-prod/linux/rpm/$basearch
+enabled=1
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-chatgpt.asc

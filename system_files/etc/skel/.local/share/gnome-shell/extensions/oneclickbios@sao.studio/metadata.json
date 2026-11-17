@@ -1,0 +1,16 @@
+{
+  "description": "Restart into BIOS / UEFI firmware settings directly from OS\n\nHold Shift in power options, \"Restart...\" will become \"Restart into Firmware Settings...\".\n\nAny suggestion is appreciated on GitHub!",
+  "gettext-domain": "oneclickbios@sao.studio",
+  "name": "One-Click BIOS",
+  "shell-version": [
+    "46",
+    "47",
+    "48",
+    "49",
+    "50",
+    "51"
+  ],
+  "url": "https://github.com/swinzy/one-click-bios",
+  "uuid": "oneclickbios@sao.studio",
+  "version": 13
+}

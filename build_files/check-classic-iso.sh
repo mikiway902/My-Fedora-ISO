@@ -19,14 +19,21 @@ source "$REPO_ROOT/build_files/repo-urls.sh"
 ISO=${1:?usage: check-classic-iso.sh ISO VARIANT [--expected-ks PATH] [--payload-dir DIR]}
 VARIANT=${2:?usage: check-classic-iso.sh ISO VARIANT [--expected-ks PATH] [--payload-dir DIR]}
 shift 2
+HARDWARE_PROFILE=${HARDWARE_PROFILE:-generic}
+PROFILE_SUFFIX=
+case "$HARDWARE_PROFILE:$VARIANT" in
+    generic:driftwm|generic:gnome) ;;
+    desktop-nvidia:gnome) PROFILE_SUFFIX=-desktop-nvidia ;;
+    *) echo "unsupported hardware profile/variant: $HARDWARE_PROFILE/$VARIANT" >&2; exit 2 ;;
+esac
 
 case $VARIANT in
     driftwm|gnome) ;;
     *) echo "check-classic-iso.sh: unknown variant: $VARIANT" >&2; exit 2 ;;
 esac
 
-EXPECTED_KS="$REPO_ROOT/output/classic/$VARIANT/$VARIANT.ks"
-PAYLOAD_DIR="$REPO_ROOT/output/classic/$VARIANT"
+EXPECTED_KS="$REPO_ROOT/output/classic/${VARIANT}${PROFILE_SUFFIX}/$VARIANT.ks"
+PAYLOAD_DIR="$REPO_ROOT/output/classic/${VARIANT}${PROFILE_SUFFIX}"
 
 while (( $# )); do
     case $1 in
@@ -140,8 +147,11 @@ done < <(grep -oE '/(releases|updates)/[0-9]+/' "$TMP/embedded.ks" \
 grep -q '^%pre ' "$TMP/embedded.ks" || fail "embedded kickstart has no %pre section"
 grep -q '^%post --nochroot ' "$TMP/embedded.ks" || fail "embedded kickstart has no %post --nochroot"
 grep -q '^%post --interpreter=' "$TMP/embedded.ks" || fail "embedded kickstart has no chroot %post"
-grep -Fq "bash /root/my-fedora-payload/classic-post.sh ${VARIANT}" "$TMP/embedded.ks" \
-    || fail "embedded kickstart does not run classic-post.sh $VARIANT"
+grep -Fxq "HARDWARE_PROFILE=${HARDWARE_PROFILE} bash /root/my-fedora-payload/classic-post.sh ${VARIANT}" "$TMP/embedded.ks" \
+    || fail "embedded kickstart does not run classic-post.sh $VARIANT with profile $HARDWARE_PROFILE"
+if grep -qE '^(clearpart|zerombr|autopart|part|partition|raid|volgroup|logvol|ignoredisk)([[:space:]]|$)' "$TMP/embedded.ks"; then
+    fail "embedded kickstart must leave storage interactive"
+fi
 
 for file in classic-post.sh packages.sh system_files.tar.gz driftwm-runtime.tar.gz; do
     extract "/${file}" "$TMP/${file}"

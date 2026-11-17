@@ -4,6 +4,7 @@
 set -euo pipefail
 
 REPO=$(cd "$(dirname "$0")/../.." && pwd)
+export HARDWARE_PROFILE=generic
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
@@ -20,6 +21,10 @@ fail() {
 
 for ks in "$TMP/driftwm.ks" "$TMP/gnome.ks"; do
     [[ -s $ks ]] || fail "$ks was not generated"
+    grep -qx 'lang ru_RU.UTF-8' "$ks" || fail "$ks does not use the measured Russian locale"
+    grep -Fxq "keyboard --vckeymap=us --xlayouts='us,ru'" "$ks" \
+        || fail "$ks does not preserve the measured keyboard layouts"
+    grep -qx 'timezone Europe/Moscow --utc' "$ks" || fail "$ks does not preserve the timezone"
     grep -q 'classic-post.sh' "$ks" || fail "$ks does not run classic-post.sh"
     grep -q 'system_files.tar.gz' "$ks" || fail "$ks does not carry system_files"
     grep -q 'driftwm-runtime.tar.gz' "$ks" || fail "$ks does not carry the driftwm payload"
@@ -86,6 +91,26 @@ grep -q '^-power-profiles-daemon$' "$TMP/gnome.ks" || fail "gnome does not exclu
 grep -q 'classic-post.sh gnome' "$TMP/gnome.ks" || fail "gnome %post uses the wrong variant"
 if grep -q '^    greetd$' "$TMP/gnome.ks"; then
     fail "greetd leaked into the gnome kickstart"
+fi
+
+HARDWARE_PROFILE=desktop-nvidia bash "$REPO/build_files/generate-kickstarts.sh" \
+    "$TMP/desktop" gnome >/dev/null
+grep -Fxq 'HARDWARE_PROFILE=desktop-nvidia bash /root/my-fedora-payload/classic-post.sh gnome' \
+    "$TMP/desktop/gnome.ks" || fail "desktop profile is not passed to GNOME post-install"
+for ks in "$TMP/driftwm.ks" "$TMP/gnome.ks" "$TMP/desktop/gnome.ks"; do
+    if grep -qE '^(clearpart|zerombr|autopart|part|partition|raid|volgroup|logvol|ignoredisk)([[:space:]]|$)' "$ks"; then
+        fail "$ks configures storage automatically"
+    fi
+done
+for variant in driftwm both; do
+    if HARDWARE_PROFILE=desktop-nvidia bash "$REPO/build_files/generate-kickstarts.sh" \
+            "$TMP/rejected" "$variant" > /dev/null 2>&1; then
+        fail "desktop-nvidia was accepted for $variant"
+    fi
+done
+if HARDWARE_PROFILE=invalid bash "$REPO/build_files/generate-kickstarts.sh" \
+        "$TMP/rejected" gnome > /dev/null 2>&1; then
+    fail "an invalid profile was accepted"
 fi
 
 # The Atomic installers do switch to the published image, with a readable retry.

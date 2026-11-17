@@ -1,2 +1,4 @@
 # Everything here runs on Linux: keep LF even when edited on Windows
 * text=auto eol=lf
+# Keep vendored extension bytes identical to the captured SHA256 inventory.
+system_files/etc/skel/.local/share/gnome-shell/extensions/** -text -whitespace

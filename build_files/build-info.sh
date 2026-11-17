@@ -9,7 +9,7 @@ shift
 repo=$(cd "$(dirname "$0")/.." && pwd)
 commit=${GITHUB_SHA:-$(git -C "$repo" rev-parse HEAD 2>/dev/null || echo unknown)}
 fedora_version=${FEDORA_VERSION:-$(sed -n 's/^FEDORA_VERSION="\{0,1\}\([0-9][0-9]*\)"\{0,1\}$/\1/p' "$repo/image-template.env" | head -1)}
-fedora_version=${fedora_version:-44}
+fedora_version=${fedora_version:-45}
 
 printf 'kind=%s\n' "$kind"
 printf 'commit=%s\n' "$commit"

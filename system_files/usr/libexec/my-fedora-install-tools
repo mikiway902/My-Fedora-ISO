@@ -1,0 +1,28 @@
+#!/bin/bash
+# Fresh application installs only: never copy accounts, devices, or host data.
+set -euo pipefail
+
+dnf5 -y install google-chrome-stable chatgpt tailscale python3.14
+
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+sunshine_url=https://github.com/SunshineStream/Sunshine/releases/download/v2026.914.233613/Sunshine-2026.914.233613-1.fc45.x86_64.rpm
+curl -fL --retry 3 --retry-all-errors "$sunshine_url" -o "$work/sunshine.rpm"
+printf '%s  %s\n' a46b83e8c8e6c8fc2e0601464b43e9c3fd2f67907a23b537ea64ff58ba4fadf3 \
+    "$work/sunshine.rpm" | sha256sum -c -
+dnf5 -y install "$work/sunshine.rpm"
+
+# A venv avoids altering Fedora's Python package set.
+python3.14 -m venv /usr/share/my-fedora/python-tools
+/usr/share/my-fedora/python-tools/bin/python -m pip install \
+    -r /usr/share/my-fedora/python-requirements.txt
+npm install -g --prefix /usr --cache "$work/npm" rea-agents@6.7.0
+
+curl -fL --retry 3 --retry-all-errors \
+    https://dl.k8s.io/release/v1.37.2/bin/linux/amd64/kubectl -o "$work/kubectl"
+printf '%s  %s\n' c04487523e7aa7d1493f7808174c899db93d7a9cf57531420cd76b9bd415f8f4 \
+    "$work/kubectl" | sha256sum -c -
+install -m 0755 "$work/kubectl" /usr/bin/kubectl
+
+# Tailscale, Sunshine and Happ require new-device authorization. No auto-login.
+printf 'Applications installed; sign in and pair devices manually.\n'

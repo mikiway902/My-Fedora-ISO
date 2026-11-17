@@ -17,7 +17,7 @@ if [[ -z ${FEDORA_VERSION:-} ]]; then
         's/^FEDORA_VERSION="\{0,1\}\([0-9][0-9]*\)"\{0,1\}$/\1/p' \
         "$_repo_root/image-template.env" | head -1)
 fi
-FEDORA_VERSION=${FEDORA_VERSION:-44}
+FEDORA_VERSION=${FEDORA_VERSION:-45}
 ARCH=${ARCH:-x86_64}
 
 if [[ ! $FEDORA_VERSION =~ ^[0-9]+$ ]]; then

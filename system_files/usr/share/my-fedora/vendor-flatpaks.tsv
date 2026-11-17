@@ -1,0 +1,8 @@
+# App ID	version	URL	SHA256
+ai.storyteller.artcraft-launcher	0.19.2	https://github.com/storytold/craft-launcher/releases/download/v0.19.2/artcraft-launcher-0.19.2-linux-x86_64.flatpak	238825b7ad3f1b16374428357d2acc7c97c7dbc5d36b1d53123d604a969969bd
+ai.storyteller.cadcraft	0.20.1	https://github.com/storytold/cadcraft/releases/download/v0.20.1/cadcraft-0.20.1-linux-x86_64.flatpak	9d1c071b2c61700fecc1770224c1213679247844fb9ef420f42fd3b34882aab7
+ai.storyteller.deckcraft	0.18.1	https://github.com/storytold/deckcraft/releases/download/v0.18.1/deckcraft-0.18.1-linux-x86_64.flatpak	080cd8a4d2f74ca9ef554125476e6d2aa80eb8dc72eab5d41247a7b17f2d6c2d
+ai.storyteller.gridcraft	0.19.1	https://github.com/storytold/gridcraft/releases/download/v0.19.1/gridcraft-0.19.1-linux-x86_64.flatpak	535289047c3891e5a238feaa186096ca3c0c283cdfde1e0fff72240f5f475d02
+ai.storyteller.pdfcraft	0.21.1	https://github.com/storytold/pdfcraft/releases/download/v0.21.1/pdfcraft-0.21.1-linux-x86_64.flatpak	4f126ff718e851ba54ee0207c4b6ce9eebddfdd72d1124531d215cc0f8937daf
+ai.storyteller.wordcraft	0.18.1	https://github.com/storytold/wordcraft/releases/download/v0.18.1/wordcraft-0.18.1-linux-x86_64.flatpak	7f3923f3537c020521318307428211d80848cd9ccb055265b23d6139216616a9
+io.tangencylabs.solidcraft	0.42.0	https://github.com/tangency-labs/solidcraft/releases/download/v0.42.0/solidcraft-0.42.0-linux-x86_64.flatpak	7752a50774cf4b916cfecbc7416f054c9d045eefccf5ba0da91b1ab106f713f9

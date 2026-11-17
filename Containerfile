@@ -1,7 +1,7 @@
 # Two images from one file, picked with `podman build --target driftwm|gnome` (see Justfile)
 
 # Fedora major must match the bases below, so driftwm links against the same libs
-ARG FEDORA_VERSION=44
+ARG FEDORA_VERSION=45
 # Pinned driftwm release; bump tag and commit together on purpose
 ARG DRIFTWM_VERSION=v0.21.0
 ARG DRIFTWM_COMMIT=df3de27b26c7998e8a460cffd8a4925cbed3a322

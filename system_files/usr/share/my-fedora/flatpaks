@@ -1,7 +1,8 @@
 com.discordapp.Discord
 org.telegram.desktop
 com.moonlight_stream.Moonlight
-org.onlyoffice.desktopeditors
+com.mattjakeman.ExtensionManager
 io.podman_desktop.PodmanDesktop
 io.github.kolunmi.Bazaar
 com.github.tchx84.Flatseal
+com.anydesk.Anydesk

@@ -40,7 +40,11 @@ POWER_PACKAGES=(
 ### DEVELOPMENT: terminal tooling and containers
 DEVELOPMENT_PACKAGES=(
     git
-    nodejs npm                         # DeepSeek Harness and terminal tooling
+    nodejs22 nodejs22-npm               # match the laptop's Node.js major
+    gcc-c++ gdb java-25-openjdk-devel
+    python3-pip python3-numpy python3-pandas python3-matplotlib python3-ipykernel
+    binwalk radare2 rizin
+    jq rsync unzip zip tree
     podman-docker podman-compose       # docker / docker compose on rootless podman
 )
 
@@ -60,13 +64,15 @@ OPTIONAL_PACKAGES=(
     cups system-config-printer         # printing
     liberation-fonts-all google-carlito-fonts google-crosextra-caladea-fonts  # MS Office metric-compatible fonts
     jetbrains-mono-fonts-all           # monospace for VS Code and terminals
-    hunspell-ru                        # Russian spell check (Firefox, GTK apps)
+    hunspell-ru langpacks-ru            # Russian locale and spell check
 )
 
 ### GNOME only: the session itself comes from Silverblue
 GNOME_PACKAGES=(
     gnome-shell-extension-appindicator gnome-shell-extension-dash-to-dock gnome-shell-extension-caffeine
     gnome-tweaks
+    gnome-boxes gnome-connections gnome-browser-connector mediawriter
+    gnome-weather gnome-clocks gnome-system-monitor
 )
 
 ### DriftWM only: runtime libs, login screen, portals and the shell around it
@@ -80,7 +86,7 @@ DRIFTWM_PACKAGES=(
     blueman
     lxqt-policykit
     google-noto-sans-fonts google-noto-emoji-fonts
-    jq wl-clipboard libnotify          # used by the driftwm extras scripts
+    wl-clipboard libnotify             # used by the driftwm extras scripts
     playerctl cliphist wlsunset kanshi
 )
 
@@ -108,28 +114,18 @@ COMMON_PACKAGES=(
 GNOME_ALL_PACKAGES=("${COMMON_PACKAGES[@]}" "${GNOME_PACKAGES[@]}")
 DRIFTWM_ALL_PACKAGES=("${COMMON_PACKAGES[@]}" "${DRIFTWM_PACKAGES[@]}")
 
-### Third-party binaries: pinned versions with SHA256 from the GitHub release
-### assets (the API exposes "digest"). Update the three values together when a
+### Third-party binaries: pinned versions with SHA256 from the release
+### assets. Update the three values together when a
 ### new release is wanted; builds fail instead of installing an unverified file.
-PDFCRAFT_VERSION="v0.16.1"
-PDFCRAFT_SHA256="b5d30dde0d5dea634af7a8f0a7bb1f81b75861ae7338c5b4c76a9b1da66ef2d3"
-PDFCRAFT_RPM="pdfcraft-${PDFCRAFT_VERSION#v}-linux-x86_64.rpm"
-PDFCRAFT_URL="https://github.com/storytold/pdfcraft/releases/download/${PDFCRAFT_VERSION}/${PDFCRAFT_RPM}"
-
 HAPP_VERSION="4.6.1"
 HAPP_SHA256="374d175138040abe38ad49cbb783029c21f129dd2ba58ca83823cb9adbaabefb"
 HAPP_RPM="Happ.linux.x64.rpm"
 HAPP_URL="https://github.com/Happ-proxy/happ-desktop/releases/download/${HAPP_VERSION}/${HAPP_RPM}"
 
 # opencode is the terminal (TUI) program; the desktop RPM is not used.
-OPENCODE_VERSION="v1.19.5"
-OPENCODE_SHA256="588310a336fa3b9df36b3f0225b26f679d453efaad0cf3d66c3651ef3ec1647a"
-OPENCODE_URL="https://github.com/anomalyco/opencode/releases/download/${OPENCODE_VERSION}/opencode-linux-x64.tar.gz"
-
-# DeepSeek Harness web UI, started with `dsh`; npm verifies the registry
-# integrity hash, the version pin keeps builds reproducible.
-DEEPSEEK_HARNESS_VERSION="0.2.1-rc.5"
-DEEPSEEK_HARNESS_PACKAGE="@deepseek-ai/dsh@${DEEPSEEK_HARNESS_VERSION}"
+OPENCODE_VERSION="2.3.0"
+OPENCODE_SHA256="fc0f81522aceeabac47693d88389efa2bc517ce74c2c38fd6967819fcc6e4d3b"
+OPENCODE_URL="https://opencode.ai/files/bin/${OPENCODE_VERSION}/opencode-linux-x64.tar.gz"
 
 ### Helpers used by both build paths
 
@@ -144,7 +140,6 @@ retry() {
 
 # Print "URL<TAB>SHA256" for every vendor RPM.
 vendor_rpms() {
-    printf '%s\t%s\n' "$PDFCRAFT_URL" "$PDFCRAFT_SHA256"
     printf '%s\t%s\n' "$HAPP_URL" "$HAPP_SHA256"
 }
 
@@ -175,9 +170,4 @@ install_opencode() {
     chown root:root /usr/bin/opencode
     chmod 755 /usr/bin/opencode
     rm -rf "$dir"
-}
-
-install_dsh() {
-    retry npm install -g --prefix /usr --cache /tmp/npm-cache "$DEEPSEEK_HARNESS_PACKAGE"
-    rm -rf /tmp/npm-cache
 }

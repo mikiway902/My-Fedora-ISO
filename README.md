@@ -1,5 +1,10 @@
 # My-Fedora-ISO
 
+> **Обновление 2026-11-17:** Fedora 45, перенос безопасных настроек текущего ноутбука
+> и отдельный Classic GNOME-профиль Ryzen 9600X / RTX 4060.
+> Актуальные состав, исключения и команды сборки: [профиль установки](docs/installation-profile.md).
+> Это сетевой установщик, не клон диска; авторизация и личные данные не переносятся.
+
 Два варианта системы для ThinkPad P14s Gen 2 AMD (Ryzen 7 PRO 5850U, Radeon Vega 8) с одинаковым набором программ, каждый в двух исполнениях:
 
 - **атомарный** (bootc, обновляется готовым образом, откат через GRUB);
@@ -11,8 +16,8 @@
 
 | Образ | Оболочка | Основа |
 |---|---|---|
-| `ghcr.io/mikiway902/my-fedora-iso-driftwm` | [driftwm](https://github.com/malbiruk/driftwm), вход через greetd + tuigreet | `ublue-os/base-main:44` (Fedora без DE) |
-| `ghcr.io/mikiway902/my-fedora-iso-gnome` | GNOME, вход через GDM | `ublue-os/silverblue-main:44` (Silverblue) |
+| `ghcr.io/mikiway902/my-fedora-iso-driftwm` | [driftwm](https://github.com/malbiruk/driftwm), вход через greetd + tuigreet | `ublue-os/base-main:45` (Fedora без DE) |
+| `ghcr.io/mikiway902/my-fedora-iso-gnome` | GNOME, вход через GDM | `ublue-os/silverblue-main:45` (Silverblue) |
 
 В обеих основах уже есть кодеки и полная Mesa из negativo17. Freeworld Mesa из RPM Fusion **не** ставится: она конфликтует с negativo17, а H.264/HEVC и так работают.
 
@@ -20,8 +25,9 @@
 
 | Артефакт | Оболочка | Что внутри |
 |---|---|---|
-| `classic-driftwm-iso` | driftwm, greetd + tuigreet | Fedora 44 + те же пакеты, что в атомарном driftwm |
-| `classic-gnome-iso` | GNOME, GDM | Fedora Workstation 44 + те же пакеты |
+| `classic-driftwm-iso` | driftwm, greetd + tuigreet | Fedora 45 + общие пакеты |
+| `classic-gnome-iso` | GNOME, GDM | Fedora Workstation 45 + снимок безопасных desktop-настроек |
+| `classic-gnome-desktop-nvidia-iso` | GNOME, GDM | Fedora 45 + NVIDIA для RTX 4060, без TuneD-настроек ноутбука |
 
 В классических ISO кодеки и полная Mesa ставятся из RPM Fusion в `%post`: полный `ffmpeg` вместо `ffmpeg-free`, `mesa-va-drivers-freeworld` и `mesa-vulkan-drivers-freeworld`.
 
@@ -43,9 +49,9 @@
 |---|---|
 | [Containerfile](Containerfile) | Атомарные образы: этапы `driftwm` и `gnome`, нужный выбирается через `--target`. Версия driftwm закреплена тегом и commit (`DRIFTWM_VERSION=v0.21.0`, `DRIFTWM_COMMIT=df3de27…`), при обновлении меняйте оба значения осознанно |
 | [build_files/packages.sh](build_files/packages.sh) | Единые списки пакетов для атомарной и классической сборки: сессии, железо, программы, COPR и vendor RPM |
-| [build_files/build.sh](build_files/build.sh) | Атомарная сборка: копирует `system_files`, ставит пакеты, opencode CLI и DeepSeek Harness |
+| [build_files/build.sh](build_files/build.sh) | Атомарная сборка: копирует `system_files`, ставит пакеты и opencode CLI |
 | [build_files/generate-kickstarts.sh](build_files/generate-kickstarts.sh) | Генерирует `driftwm.ks` и `gnome.ks` для классического установщика из тех же списков пакетов |
-| [build_files/classic-post.sh](build_files/classic-post.sh) | `%post` классической установки: RPM Fusion, COPR, vendor RPM, opencode CLI, DSH, `system_files` и сервисы |
+| [build_files/classic-post.sh](build_files/classic-post.sh) | `%post` классической установки: RPM Fusion, COPR, vendor RPM, opencode CLI, `system_files` и сервисы |
 | [build_files/build-classic-iso.sh](build_files/build-classic-iso.sh) | Скачивает Fedora Everything netinst, добавляет kickstart и payload через `mkksiso`, проверяет итоговый ISO |
 | [build_files/repo-urls.sh](build_files/repo-urls.sh) | Официальные URL Fedora для установщика (`dl.fedoraproject.org`), единый источник для kickstart, сборки и проверок |
 | [build_files/check-repos.sh](build_files/check-repos.sh) | Проверяет URL в kickstart, `repomd.xml`, primary/group-метаданные и `.treeinfo`; отличает ошибку конфигурации от сетевого сбоя |
@@ -69,17 +75,18 @@
 | VS Code | Репозиторий Microsoft | С образом |
 | Расширения VS Code: Claude Code и opencode (`sst-dev.opencode`) | Marketplace, при первом входе пользователя | Сами, через VS Code |
 | `docker` / `docker compose` (поверх rootless Podman) | Fedora: `podman-docker`, `podman-compose` | С образом |
-| PdfCraft, Happ | GitHub Releases, версия и SHA256 закреплены в `packages.sh` | С образом |
-| opencode CLI (`opencode`) | GitHub Releases, версия и SHA256 закреплены в `packages.sh` | С образом |
-| DeepSeek Harness (`dsh`, web UI) | npm, версия закреплена в `packages.sh` | С образом |
-| Discord, Telegram, Moonlight, OnlyOffice, Podman Desktop, Bazaar (магазин Flatpak), Flatseal (права Flatpak) | Flathub, при первой загрузке | Сами, таймер Flatpak |
+| Happ | GitHub Releases, версия и SHA256 закреплены в `packages.sh` | С образом |
+| opencode CLI (`opencode`) 2.3.0 | Официальный download endpoint, версия и SHA256 закреплены в `packages.sh` | С образом |
+| REA, Python dev-инструменты | Версии в `my-fedora-install-tools` и `python-requirements.txt` | Вручную |
+| Discord, Telegram, Moonlight, AnyDesk, Podman Desktop, Bazaar, Flatseal | Flathub, при первой загрузке | Через Flatpak |
+| ArtCraft Launcher, CADCraft, DeckCraft, GridCraft, PDFCraft, WordCraft, SolidCraft | GitHub Releases, bundle и SHA256 закреплены в `vendor-flatpaks.tsv` | Обновлением списка |
 | Extension Manager (только GNOME) | Flathub, при первой загрузке | Сам, таймер Flatpak |
 | Расширения GNOME: AppIndicator (значки в трее), Dash to Dock, Caffeine (не засыпать); GNOME Tweaks | Fedora, включены сразу | С образом |
 | Шрифт JetBrains Mono (по умолчанию в VS Code, терминале foot и моноширинным в GNOME), русский словарь hunspell | Fedora | С образом |
 
 Программу из списков `flatpaks` или `vscode-extensions` можно добавить в любой момент: после обновления системы она установится сама. Если пользователь удалил программу, обратно она не ставится.
 
-opencode ставится как терминальная программа (не desktop) и уже настроен без запросов разрешений: новый пользователь получает `~/.config/opencode/opencode.json` из `system_files/etc/skel`. DeepSeek Harness запускается командой `dsh`. Версии сторонних программ и их SHA256 лежат в [build_files/packages.sh](build_files/packages.sh); при обновлении меняйте версию и хеш вместе, сборка не установит непроверенный файл.
+opencode ставится как терминальная программа. Новый пользователь получает переносимый профиль GPT lead/reviewer + DeepSeek из `system_files/etc/skel`, без credentials и истории. Опасные команды требуют подтверждения или запрещены. DeepSeek Harness и OmniRoute не устанавливаются. Версии сторонних программ и SHA256 закреплены в [build_files/packages.sh](build_files/packages.sh) и списке vendor Flatpak; версия и хеш обновляются вместе.
 
 Атомарные образы пересобираются каждый день в 06:05 по Москве, при каждом push и вручную (Actions → Run workflow). GitHub отключает расписание, если в репо 60 дней не было коммитов. Тогда его нужно включить заново на вкладке Actions. Классические ISO собираются вручную через workflow **Build classic ISO**.
 
@@ -153,8 +160,8 @@ Classic ISO — это **сетевой установщик** (netinstall): н�
 
 Установщик получает пакеты из двух явно заданных официальных репозиториев:
 
-- установочный репозиторий: `https://dl.fedoraproject.org/pub/fedora/linux/releases/44/Everything/x86_64/os/`;
-- обновления на время установки: `https://dl.fedoraproject.org/pub/fedora/linux/updates/44/Everything/x86_64/`.
+- установочный репозиторий: `https://dl.fedoraproject.org/pub/fedora/linux/releases/45/Everything/x86_64/os/`;
+- обновления на время установки: `https://dl.fedoraproject.org/pub/fedora/linux/updates/45/Everything/x86_64/`.
 
 `mirrors.fedoraproject.org` в установщике **не используется**. Это официальный metalink-редиректор с wildcard-CNAME и большим числом A/AAAA-записей; именно его разрешение было нестабильным в исходной ошибке (`Could not resolve host: mirrors.fedoraproject.org`, `Cannot prepare internal mirrorlist`). `dl.fedoraproject.org` — официальный хост загрузки Fedora с прямыми адресами. TLS, GPG и проверка подписей не отключаются.
 
@@ -177,7 +184,7 @@ Classic ISO — это **сетевой установщик** (netinstall): н�
    cat /etc/resolv.conf
    resolvectl status
    getent hosts dl.fedoraproject.org
-   curl -I https://dl.fedoraproject.org/pub/fedora/linux/releases/44/Everything/x86_64/os/repodata/repomd.xml
+   curl -I https://dl.fedoraproject.org/pub/fedora/linux/releases/45/Everything/x86_64/os/repodata/repomd.xml
    ```
 3. Если `ping 1.1.1.1` работает, а `getent hosts dl.fedoraproject.org` — нет, проблема в DNS/роутере, а не в ISO. Попробуйте другой DNS в настройках сети установщика.
 4. `dnf: command not found` в консоли Anaconda — **не ошибка**: в минимальной среде установщика dnf может отсутствовать. Проверяйте сеть через `curl` и `getent`, а не через `dnf`.
@@ -206,7 +213,7 @@ CI проверяет цепочку до публикации:
   ```
 
   bootc/ostree сам создаёт загрузочные записи для текущего и предыдущего deployment; предыдущая рабочая версия не удаляется при обычном обновлении. Выбрать её можно и в меню GRUB при загрузке. Вручную GRUB и `custom.cfg` для этого не редактируются: сервис `grub-windows-entry` добавляет только пункт Windows, не трогая записи bootc. Наличие нескольких пунктов GRUB само по себе не гарантирует откат — проверяйте `bootc status` после обновления.
-- **Классические:** обычное `sudo dnf5 upgrade --refresh` (в Fedora 44 это штатный менеджер; `dnf` — совместимая команда). Образ с GHCR не связан, отката к прошлому образу нет; для отката пакетов используйте историю dnf и снапшоты btrfs, если настроили их сами.
+- **Классические:** обычное `sudo dnf5 upgrade --refresh` (в Fedora 45 это штатный менеджер; `dnf` — совместимая команда). Образ с GHCR не связан, отката к прошлому образу нет; для отката пакетов используйте историю dnf и снапшоты btrfs, если настроили их сами.
 - **Atomic ISO и `latest`:** ISO при установке выполняет `bootc switch` на `ghcr.io/mikiway902/my-fedora-iso-<variant>:latest`, поэтому ставится последняя опубликованная сборка, а не обязательно та, что была в момент сборки ISO. Без сети/GHCR установка Atomic ISO завершится понятной ошибкой; Classic ISO от GHCR не зависит.
 
 ## Download prebuilt ISO
@@ -441,7 +448,7 @@ sudo thinkpad-diagnostics --report /var/tmp/thinkpad-report.txt   # + SMART
 
 Если driftwm не нужен, ставьте **Fedora Workstation** и запустите [setup.sh](setup.sh). Другой вариант: **Bluefin** или **Aurora**, им скрипт не нужен.
 
-Fedora 45 перенесли с 20 октября на 27 октября (возможно, на 3 ноября). Если 45 ещё не вышла, ставьте 44 и обновитесь позже. Rawhide не берите.
+Текущий профиль соответствует установленной Fedora 45 Workstation. Rawhide для этого образа не используется.
 
 ## Что исправлено в исходной шпаргалке
 

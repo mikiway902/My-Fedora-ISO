@@ -43,8 +43,10 @@ cp -a /ctx/system_files/etc/tuned/profiles/. /etc/tuned/profiles/
 # pinned SHA256; /usr, not /usr/local, is part of the bootc image.
 install_opencode
 
-# DeepSeek Harness web UI, started with `dsh`
-install_dsh
+# Fresh applications, not a copy of host credentials or application databases.
+if [[ $VARIANT == gnome ]]; then
+    bash /usr/libexec/my-fedora-install-tools
+fi
 
 # git on Windows drops the exec bit; keep the helpers executable everywhere
 chmod +x /usr/libexec/my-fedora-* /usr/bin/my-fedora-* /usr/bin/thinkpad-diagnostics
@@ -56,6 +58,8 @@ systemctl enable flatpak-preinstall.service grub-windows-entry.service
 systemctl --global enable vscode-extensions.service
 
 if [[ $VARIANT == driftwm ]]; then
+    rm -f /etc/dconf/db/local.d/10-desktop-profile
+    rm -rf /etc/skel/.local/share/gnome-shell/extensions
     # Seed new users with the upstream extras (dashboard, scripts, themes), then our config on top
     XDG_CONFIG_HOME=/etc/skel/.config sh /usr/share/driftwm/extras/install.sh
     cp /usr/share/my-fedora/driftwm-config.toml /etc/skel/.config/driftwm/config.toml
@@ -70,7 +74,10 @@ else
     rm -rf /etc/greetd /etc/skel/.config/kanshi /etc/skel/.config/foot \
         /usr/lib/systemd/logind.conf.d/50-lid-ac.conf
     glib-compile-schemas /usr/share/glib-2.0/schemas  # picks up zz1-my-fedora.gschema.override
-    echo com.mattjakeman.ExtensionManager >> /usr/share/my-fedora/flatpaks
+    for schemas in /etc/skel/.local/share/gnome-shell/extensions/*/schemas; do
+        [[ ! -d $schemas ]] || glib-compile-schemas --strict "$schemas"
+    done
+    dconf update
 fi
 
 # dnf and selinux-policy leave transient state in /run; it is not part of the

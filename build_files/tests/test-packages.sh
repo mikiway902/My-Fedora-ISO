@@ -59,13 +59,13 @@ if contains greetd "${GNOME_ALL_PACKAGES[@]}"; then fail "greetd leaked into the
 if contains gnome-tweaks "${DRIFTWM_ALL_PACKAGES[@]}"; then fail "gnome-tweaks leaked into the DriftWM package set"; fi
 
 # Every third-party download has a pinned version and a real SHA256.
-for value in "$PDFCRAFT_VERSION" "$HAPP_VERSION" "$OPENCODE_VERSION"; do
+for value in "$HAPP_VERSION" "$OPENCODE_VERSION"; do
     [[ -n $value ]] || fail "a third-party version is not pinned"
 done
-for sum in "$PDFCRAFT_SHA256" "$HAPP_SHA256" "$OPENCODE_SHA256"; do
+for sum in "$HAPP_SHA256" "$OPENCODE_SHA256"; do
     [[ $sum =~ ^[0-9a-f]{64}$ ]] || fail "invalid SHA256: $sum"
 done
-[[ $DEEPSEEK_HARNESS_PACKAGE == @deepseek-ai/dsh@* ]] || fail "DeepSeek Harness is not version-pinned"
+[[ $OPENCODE_VERSION == 2.3.0 ]] || fail "OpenCode must match the captured installation"
 
 # ppd.conf must only reference profiles that exist in the repo.
 PPD="$REPO/system_files/etc/tuned/ppd.conf"

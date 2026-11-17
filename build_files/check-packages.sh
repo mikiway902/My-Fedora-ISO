@@ -1,6 +1,6 @@
 #!/bin/bash
-# Check that every Fedora package named in packages.sh exists in Fedora 44.
-# Run inside quay.io/fedora/fedora:44 (see `just check-packages`): the container
+# Check that every Fedora package named in packages.sh exists in Fedora 45.
+# Run inside quay.io/fedora/fedora:45 (see `just check-packages`): the container
 # provides dnf5 and the release repositories.
 set -euo pipefail
 
@@ -9,7 +9,7 @@ REPO=$(cd "$(dirname "$0")/.." && pwd)
 source "$REPO/build_files/packages.sh"
 
 if ! command -v dnf5 >/dev/null 2>&1; then
-    echo "dnf5 is required; run this script in quay.io/fedora/fedora:44" >&2
+    echo "dnf5 is required; run this script in quay.io/fedora/fedora:45" >&2
     exit 1
 fi
 

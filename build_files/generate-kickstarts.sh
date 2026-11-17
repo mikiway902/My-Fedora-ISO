@@ -12,6 +12,11 @@ set -euo pipefail
 
 OUT_DIR=${1:?usage: generate-kickstarts.sh OUT_DIR [driftwm|gnome|both]}
 VARIANT=${2:-both}
+HARDWARE_PROFILE=${HARDWARE_PROFILE:-generic}
+case "$HARDWARE_PROFILE:$VARIANT" in
+    generic:driftwm|generic:gnome|generic:both|desktop-nvidia:gnome) ;;
+    *) echo "unsupported hardware profile/variant: $HARDWARE_PROFILE/$VARIANT" >&2; exit 1 ;;
+esac
 
 # shellcheck source=repo-urls.sh
 # shellcheck disable=SC1091
@@ -31,12 +36,13 @@ write_common() {
     local label=$1
     cat <<EOF
 # Classic Fedora ${FEDORA_VERSION} ${label}, installed by Anaconda from Fedora Everything.
-# Storage is intentionally left interactive: this laptop dual-boots Windows.
+# Storage is intentionally left interactive; no disks are automatically erased.
+# Hardware profile: ${HARDWARE_PROFILE}
 #
 # The installer uses explicit official URLs (not the mirrors.fedoraproject.org
 # metalink).  The installed system keeps Fedora's normal repository files.
 
-lang en_US.UTF-8
+lang ru_RU.UTF-8
 keyboard --vckeymap=us --xlayouts='us,ru'
 timezone Europe/Moscow --utc
 selinux --enforcing
@@ -243,7 +249,7 @@ write_post() {
     cat <<EOF
 %post --interpreter=/bin/bash --erroronfail --log=/var/log/my-fedora-install/post.log
 set -euo pipefail
-bash /root/my-fedora-payload/classic-post.sh $variant
+HARDWARE_PROFILE=$HARDWARE_PROFILE bash /root/my-fedora-payload/classic-post.sh $variant
 rm -rf /root/my-fedora-payload
 %end
 EOF

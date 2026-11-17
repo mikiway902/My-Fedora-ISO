@@ -11,6 +11,13 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VARIANT=${VARIANT:-${1:-driftwm}}
+export HARDWARE_PROFILE=${HARDWARE_PROFILE:-generic}
+PROFILE_SUFFIX=
+case "$HARDWARE_PROFILE:$VARIANT" in
+    generic:driftwm|generic:gnome) ;;
+    desktop-nvidia:gnome) PROFILE_SUFFIX=-desktop-nvidia ;;
+    *) echo "unsupported hardware profile/variant: $HARDWARE_PROFILE/$VARIANT" >&2; exit 1 ;;
+esac
 
 # shellcheck source=repo-urls.sh
 # shellcheck disable=SC1091
@@ -26,7 +33,7 @@ if [[ $ARCH != x86_64 ]]; then
     exit 1
 fi
 
-WORK="$REPO_ROOT/output/classic/$VARIANT"
+WORK="$REPO_ROOT/output/classic/${VARIANT}${PROFILE_SUFFIX}"
 CACHE="$REPO_ROOT/output/classic/cache"
 OUT="$REPO_ROOT/output/bootiso"
 mkdir -p "$WORK" "$CACHE" "$OUT"
@@ -129,5 +136,5 @@ FEDORA_VERSION="$FEDORA_VERSION" ARCH="$ARCH" \
         --expected-ks "$WORK/${VARIANT}.ks" \
         --payload-dir "$WORK"
 
-mv -f "$WORK/out.iso" "$OUT/my-fedora-classic-${VARIANT}.iso"
-echo "==> ISO: $OUT/my-fedora-classic-${VARIANT}.iso"
+mv -f "$WORK/out.iso" "$OUT/my-fedora-classic-${VARIANT}${PROFILE_SUFFIX}.iso"
+echo "==> ISO: $OUT/my-fedora-classic-${VARIANT}${PROFILE_SUFFIX}.iso"

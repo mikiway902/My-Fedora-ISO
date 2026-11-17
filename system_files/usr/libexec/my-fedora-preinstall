@@ -5,6 +5,11 @@
 #   my-fedora-preinstall vscode-extensions (user service)
 set -euo pipefail
 
+case ${1:-} in
+    flatpaks|vscode-extensions) ;;
+    *) echo "Usage: $0 flatpaks|vscode-extensions" >&2; exit 1 ;;
+esac
+
 list="/usr/share/my-fedora/$1"
 if [[ $EUID -eq 0 ]]; then state=/var/lib/my-fedora; else state="${XDG_STATE_HOME:-$HOME/.local/state}/my-fedora"; fi
 done_file="$state/$1.done"
@@ -12,12 +17,38 @@ done_file="$state/$1.done"
 mkdir -p "$state"
 touch "$done_file"
 mapfile -t new < <(comm -23 <(sort -u "$list") <(sort -u "$done_file"))
-[[ ${#new[@]} -eq 0 ]] && exit 0
+
+install_vendor_flatpak() (
+    local url=$1 sha=$2 dir file
+    dir=$(mktemp -d)
+    trap 'rm -rf "$dir"' EXIT
+    file="$dir/bundle.flatpak"
+    curl -fL --retry 3 --retry-all-errors -o "$file" "$url"
+    printf '%s  %s\n' "$sha" "$file" | sha256sum -c -
+    flatpak install --system --noninteractive --or-update "$file"
+)
 
 case $1 in
     flatpaks)
         flatpak remote-add --system --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-        flatpak install --system --noninteractive --or-update flathub "${new[@]}" ;;
+        if ((${#new[@]})); then
+            flatpak install --system --noninteractive --or-update flathub "${new[@]}"
+            sort -u "$list" "$done_file" -o "$done_file"
+        fi
+        vendor_done="$state/vendor-flatpaks.done"
+        touch "$vendor_done"
+        while IFS=$'\t' read -r app version url sha; do
+            [[ -z $app || $app == \#* ]] && continue
+            [[ $app =~ ^[a-zA-Z0-9_.-]+$ && $version =~ ^[0-9]+(\.[0-9]+)*$ &&
+                $url == https://* && $sha =~ ^[0-9a-f]{64}$ ]] || {
+                echo "Invalid vendor Flatpak entry: $app" >&2
+                exit 1
+            }
+            record=$(printf '%s\t%s\t%s' "$app" "$version" "$sha")
+            grep -Fxq "$record" "$vendor_done" && continue
+            install_vendor_flatpak "$url" "$sha"
+            printf '%s\n' "$record" >> "$vendor_done"
+        done < /usr/share/my-fedora/vendor-flatpaks.tsv ;;
     vscode-extensions)
         for ext in "${new[@]}"; do code --install-extension "$ext"; done ;;
 esac

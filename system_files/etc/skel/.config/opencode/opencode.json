@@ -1,4 +1,235 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "permission": "allow"
+  "default_agent": "lead",
+  "mcp": {
+    "servers": {
+      "context7": {
+        "enabled": true,
+        "type": "remote",
+        "url": "https://mcp.context7.com/mcp"
+      },
+      "rea": {
+        "command": [
+          "npx",
+          "-y",
+          "rea-agents@6.8.0",
+          "mcp"
+        ],
+        "enabled": true,
+        "type": "local"
+      }
+    }
+  },
+  "permissions": [
+    {
+      "action": "external_directory",
+      "effect": "ask",
+      "resource": "*"
+    },
+    {
+      "action": "shell",
+      "effect": "ask",
+      "resource": "*"
+    },
+    {
+      "action": "shell",
+      "effect": "allow",
+      "resource": "git status *"
+    },
+    {
+      "action": "shell",
+      "effect": "allow",
+      "resource": "git diff *"
+    },
+    {
+      "action": "shell",
+      "effect": "allow",
+      "resource": "git log *"
+    },
+    {
+      "action": "shell",
+      "effect": "allow",
+      "resource": "git show *"
+    },
+    {
+      "action": "shell",
+      "effect": "allow",
+      "resource": "ls *"
+    },
+    {
+      "action": "shell",
+      "effect": "allow",
+      "resource": "find *"
+    },
+    {
+      "action": "shell",
+      "effect": "ask",
+      "resource": "find *-delete*"
+    },
+    {
+      "action": "shell",
+      "effect": "ask",
+      "resource": "find *-exec*"
+    },
+    {
+      "action": "shell",
+      "effect": "allow",
+      "resource": "grep *"
+    },
+    {
+      "action": "shell",
+      "effect": "allow",
+      "resource": "rg *"
+    },
+    {
+      "action": "shell",
+      "effect": "allow",
+      "resource": "pytest *"
+    },
+    {
+      "action": "shell",
+      "effect": "allow",
+      "resource": "python -m pytest *"
+    },
+    {
+      "action": "shell",
+      "effect": "allow",
+      "resource": "python3 -m pytest *"
+    },
+    {
+      "action": "shell",
+      "effect": "allow",
+      "resource": "npm test *"
+    },
+    {
+      "action": "shell",
+      "effect": "allow",
+      "resource": "npm run test *"
+    },
+    {
+      "action": "shell",
+      "effect": "allow",
+      "resource": "pnpm test *"
+    },
+    {
+      "action": "shell",
+      "effect": "allow",
+      "resource": "cargo test *"
+    },
+    {
+      "action": "shell",
+      "effect": "allow",
+      "resource": "cargo check *"
+    },
+    {
+      "action": "shell",
+      "effect": "allow",
+      "resource": "go test *"
+    },
+    {
+      "action": "shell",
+      "effect": "ask",
+      "resource": "git push *"
+    },
+    {
+      "action": "shell",
+      "effect": "deny",
+      "resource": "git reset --hard *"
+    },
+    {
+      "action": "shell",
+      "effect": "deny",
+      "resource": "sudo *"
+    },
+    {
+      "action": "shell",
+      "effect": "deny",
+      "resource": "rm -rf *"
+    },
+    {
+      "action": "shell",
+      "effect": "deny",
+      "resource": "rm -fr *"
+    },
+    {
+      "action": "shell",
+      "effect": "deny",
+      "resource": "rm -r -f *"
+    },
+    {
+      "action": "shell",
+      "effect": "deny",
+      "resource": "rm -f -r *"
+    },
+    {
+      "action": "shell",
+      "effect": "deny",
+      "resource": "rm --recursive --force *"
+    }
+  ],
+  "plugins": [
+    "@dietrichgebert/ponytail"
+  ],
+  "policies": [
+    {
+      "action": "tool.use",
+      "effect": "deny",
+      "resource": "shell:git push *"
+    },
+    {
+      "action": "tool.use",
+      "effect": "deny",
+      "resource": "shell:git reset --hard *"
+    },
+    {
+      "action": "tool.use",
+      "effect": "deny",
+      "resource": "shell:sudo *"
+    },
+    {
+      "action": "tool.use",
+      "effect": "deny",
+      "resource": "shell:rm -rf *"
+    },
+    {
+      "action": "tool.use",
+      "effect": "deny",
+      "resource": "shell:rm -fr *"
+    },
+    {
+      "action": "tool.use",
+      "effect": "deny",
+      "resource": "shell:rm -r -f *"
+    },
+    {
+      "action": "tool.use",
+      "effect": "deny",
+      "resource": "shell:rm -f -r *"
+    },
+    {
+      "action": "tool.use",
+      "effect": "deny",
+      "resource": "shell:rm --recursive --force *"
+    },
+    {
+      "action": "tool.use",
+      "effect": "deny",
+      "resource": "shell:docker system prune *"
+    },
+    {
+      "action": "tool.use",
+      "effect": "deny",
+      "resource": "shell:docker volume rm *"
+    },
+    {
+      "action": "tool.use",
+      "effect": "deny",
+      "resource": "shell:kubectl delete *"
+    },
+    {
+      "action": "tool.use",
+      "effect": "deny",
+      "resource": "shell:terraform destroy *"
+    }
+  ]
 }
